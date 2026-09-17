@@ -1,42 +1,69 @@
-# Events Circle — Presence app
+# Events Circle — Presence
 
-Separate Presence application using the shared Events Circle backend. This first delivery is the API integration foundation. It contains no screens, no second backend, no database schema and no server secrets. UI design and the Expo application shell come next.
+An Expo / React Native supplier app for Android and iOS, using the existing shared Events Circle API on Railway. The first frontend implements the Cobalt Workspace direction with blue/cyan gradients, real account data, and accessible empty states. Business backend code, PostgreSQL and image storage stay in Main Core.
 
-## Backend connection
+## Run on a phone
 
-- Core source: https://github.com/Events-Circle/Event-Circle-Main-Core
-- Staging API origin: https://events-circle-api-production.up.railway.app
-- API paths already contain `/api/v1`; do not append it to the origin.
-- Auth, organization permissions, supplier identity, media, Presence and Leads run in Core on Railway.
-- The uploaded Core/Common/Presence ZIP was reviewed: all 50 files matched Core. None were copied here because the app accesses that implementation over HTTPS.
-
-## Included
-
-- Type-safe OpenAPI client for Core, Presence and inquiry/Leads endpoints.
-- Pinned API specification/types, source commit and SHA-256 integrity checks.
-- Session adapter with login, registration, explicit single-flight refresh and logout.
-- Per-request authorization and organization headers; public clients without credentials.
-- Tests, CI and an explicit read-only staging smoke check.
+Requires Node 22.12+ and pnpm 10.30.3.
 
 ```sh
 corepack enable
 pnpm install --frozen-lockfile
+pnpm start
+```
+
+This app targets **Expo SDK 55**, matching the Core mobile foundation. Use an SDK-55-compatible Expo Go client or a development/internal build. The current store version of Expo Go may target a newer SDK. Android can use the matching Expo Go download from expo.dev/go. A native build is the stable route for ongoing testing without a developer running Metro.
+
+The API defaults to `https://events-circle-api-production.up.railway.app`. Override only with a reviewed HTTPS origin using `EXPO_PUBLIC_API_URL`. API paths already include `/api/v1`. Never put database, storage or signing secrets in this app.
+
+Create an account, set up a business, then complete the Presence profile. New accounts show empty portfolios and listings; the app does not seed illustrative supplier data. Registration requires a 12–128 character password.
+
+## Included flows
+
+- Sign in, registration, SecureStore persistence on native, refresh-token rotation, sign out.
+- Business onboarding and owner-only identity/contact editing; organization switching.
+- Overview: actual readiness, profile, four listing counts, projects, contact status and gallery.
+- Profile description/tagline/slug, logo/cover upload, public contact visibility, readiness, publish/unpublish.
+- Portfolio, gallery and listing create/edit, image selection/upload, image descriptions and cover selection.
+- Draft/publish/unpublish/archive/restore with version checks and role-sensitive controls.
+- All listing types, pricing modes, offer expiry. Amount input is explicitly in minor currency units.
+- Saved-content preview; published preview uses the public aggregate (up to six per collection).
+- Public link/QR/share/copy when the backend has a configured public website and the profile is published.
+- Explicit planned states for Circle AI, Content posts, Hosted Events, Presence reviews, WhatsApp and consultations.
+
+## EAS distribution
+
+`eas.json` includes an internal Android APK preview profile and production profile. **No EAS project has been linked and no installable build has been generated yet.** Linking must use the correct Events Circle Expo account/project; do not reuse the unrelated Fitness project.
+
+After account linking, set unique Android package/iOS bundle identifiers in `app.config.ts` and the EAS project ID provided by `eas init`, then run `eas build --platform android --profile preview`. EAS supplies a downloadable APK when the build passes. This runs against Railway without a local Metro server. iOS signing/device testing follows once the Apple Developer account is ready.
+
+## Verification
+
+```sh
 pnpm check
+pnpm exec expo export --platform all --output-dir mobile-dist
+pnpm exec playwright install chromium
+pnpm test:ui
 pnpm smoke:staging
 ```
 
-The smoke command reads health, module activation and catalogs, and checks that a protected route rejects anonymous access. It does not create any data. CI runs deterministic tests without depending on Railway uptime.
+UI tests use deterministic mocked API responses, never customer records. The staging smoke is read-only. Browser QA does not establish native-device compatibility: image picker, native SecureStore, Android installation and iOS native behavior still need device validation.
 
-## Layout
+## Boundaries and limitations
 
-- `src/api/`: client, configuration, session handling and generated types.
-- `contracts/`: reviewed Core OpenAPI snapshot and source metadata.
-- `tests/`: client/session behavior tests.
-- `scripts/`: contract verification and read-only staging check.
-- `docs/backend-integration.md`: endpoint usage, ownership, media and frontend handoff.
+The browser build is a QA surface; browser sessions are memory-only. Railway CORS must explicitly allow a future web host before live web sign-in works. Native apps are the intended first delivery.
 
-## Next phase
+The public supplier website is a separate surface and is not deployed here. QR/sharing stays unavailable until its URL is configured in Core. Public preview is not an independently deployed website. Notification, AI, review and booking behavior is not fabricated.
 
-Add the Expo/React Native app for Android and iOS after UI discussion. Bind SessionStore to Expo SecureStore, link the correct EAS project, choose app identifiers, and create native builds. The current in-memory store does not persist login across app restarts. Browser credential persistence needs a separate reviewed design; never store refresh tokens in localStorage.
+Later refinement includes SEO/social links/hours editors, ordering whole collections, inquiry inbox/capture screens, richer image management, password recovery (requires backend support), and public website delivery. Leaving an editor discards unsaved changes; uploaded but unused images remain private and need backend retention/cleanup policy. Mutation timeouts are not automatically retried; refresh before trying again.
 
-No EAS project, native build, public Presence website or new Railway service is created by this repository foundation. The existing Core database and private bucket remain the only sources of persistent business data.
+## Code layout
+
+- `App.tsx`: app/session orchestration, tabs, overview, authentication, previews.
+- `mobile/`: UI primitives, forms, live-data transport and snapshot loading.
+- `src/api/`: shared generated API types and tested session/client foundation.
+- `contracts/`: pinned Core contract and integrity metadata.
+- `tests/`: client/session tests and browser journey checks.
+- `docs/backend-integration.md`: backend handoff and ownership.
+
+Core: https://github.com/Events-Circle/Event-Circle-Main-Core

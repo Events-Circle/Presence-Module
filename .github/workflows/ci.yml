@@ -8,7 +8,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -22,3 +22,6 @@ jobs:
       - run: pnpm format:check
       - run: pnpm contracts:generate
       - run: git diff --exit-code -- src/api/schema.d.ts
+      - run: pnpm exec expo export --platform all --output-dir mobile-dist
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:ui

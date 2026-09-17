@@ -8,3 +8,8 @@ coverage/
 *.pem
 *.key
 *.keystore
+.expo/
+mobile-dist/
+web-dist/
+test-results/
+playwright-report/
