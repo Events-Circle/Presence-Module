@@ -2,6 +2,10 @@ export default {
   expo: {
     name: "Events Circle · Presence",
     slug: "events-circle-presence",
+    owner: "omarb121s-team",
+    extra: {
+      eas: { projectId: "f4b3a932-55cb-4120-acf8-1938dd5ac421" },
+    },
     version: "0.2.0",
     orientation: "portrait",
     userInterfaceStyle: "light",
