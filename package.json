@@ -1,0 +1,29 @@
+{
+  "name": "@events-circle/presence-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/copy-schema.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node --test tests/*.test.mjs",
+    "contracts:generate": "openapi-typescript contracts/core.openapi.json -o src/api/schema.d.ts",
+    "contracts:verify": "node scripts/verify-contract.mjs",
+    "check": "pnpm contracts:verify && pnpm typecheck && pnpm test",
+    "smoke:staging": "pnpm build && node scripts/smoke-staging.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "openapi-fetch": "0.15.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "openapi-typescript": "7.13.0",
+    "prettier": "^3.8.0"
+  }
+}
