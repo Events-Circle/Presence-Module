@@ -12,7 +12,11 @@ pnpm install --frozen-lockfile
 pnpm start
 ```
 
-This app targets **Expo SDK 55**, matching the Core mobile foundation. Use an SDK-55-compatible Expo Go client or a development/internal build. The current store version of Expo Go may target a newer SDK. Android can use the matching Expo Go download from expo.dev/go. A native build is the stable route for ongoing testing without a developer running Metro.
+This app targets **Expo SDK 57**. Use Expo Go for SDK 57, or an SDK 57 internal build. Native iOS builds require iOS 16.4 or later. The mobile SDK is independent of the shared Core backend. A native build is the stable route for ongoing testing without a developer running Metro.
+
+In GitHub Codespaces, use `pnpm exec expo start --go --tunnel` and scan the QR code. Keep the Codespace running for this preview. A tunnel failure is separate from SDK compatibility; desktop DevTools also requires Linux GUI libraries that may not be present in Codespaces.
+
+After pulling an SDK upgrade, stop Metro, run `pnpm install --frozen-lockfile`, and restart with `pnpm exec expo start --go --tunnel --clear`. Keep only `pnpm-lock.yaml`; do not create an npm or Yarn lockfile.
 
 The API defaults to `https://events-circle-api-production.up.railway.app`. Override only with a reviewed HTTPS origin using `EXPO_PUBLIC_API_URL`. API paths already include `/api/v1`. Never put database, storage or signing secrets in this app.
 
@@ -33,9 +37,9 @@ Create an account, set up a business, then complete the Presence profile. New ac
 
 ## EAS distribution
 
-`eas.json` includes an internal Android APK preview profile and production profile. **No EAS project has been linked and no installable build has been generated yet.** Linking must use the correct Events Circle Expo account/project; do not reuse the unrelated Fitness project.
+`eas.json` includes an internal Android APK preview profile and production profile. The app is linked to `@omarb121s-team/events-circle-presence`, project ID `f4b3a932-55cb-4120-acf8-1938dd5ac421`. Android and iOS identifiers are `com.eventscircle.presence`.
 
-After account linking, set unique Android package/iOS bundle identifiers in `app.config.ts` and the EAS project ID provided by `eas init`, then run `eas build --platform android --profile preview`. EAS supplies a downloadable APK when the build passes. This runs against Railway without a local Metro server. iOS signing/device testing follows once the Apple Developer account is ready.
+Run `eas build --platform android --profile preview` using the existing EAS-managed signing key. EAS supplies a downloadable APK when the build passes. Each SDK upgrade requires a new native build; an already uploaded build retains its original SDK. The installed APK runs against Railway without a Metro server. iOS signing/device testing follows once the Apple Developer account is ready.
 
 ## Verification
 

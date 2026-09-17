@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import * as ImagePicker from "expo-image-picker";
+import { File } from "expo-file-system";
 import {
   AuthSession,
   type Tokens,
@@ -204,12 +205,18 @@ export async function pickImage(org: string) {
       await (await fetch(asset.uri)).blob(),
       asset.fileName || "photo.jpg",
     );
-  else
-    form.append("file", {
-      uri: asset.uri,
-      name: asset.fileName || "photo.jpg",
-      type,
-    } as unknown as Blob);
+  else {
+    // SDK 56+ uses Expo fetch: multipart bodies need a real Blob/File,
+    // rather than React Native's legacy { uri, name, type } object.
+    const file = new File(asset.uri);
+    if (file.size > 5 * 1024 * 1024)
+      throw new HttpError(400, "Choose an image under 5 MB.");
+    form.append(
+      "file",
+      file.slice(0, file.size, type),
+      asset.fileName || file.name || "photo.jpg",
+    );
+  }
   const r = await timedFetch(
     origin + "/api/v1/core/media",
     {

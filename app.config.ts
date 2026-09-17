@@ -10,7 +10,10 @@ export default {
     orientation: "portrait",
     userInterfaceStyle: "light",
     scheme: "events-circle-presence",
-    ios: { supportsTablet: true, bundleIdentifier: "com.eventscircle.presence" },
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: "com.eventscircle.presence",
+    },
     android: { edgeToEdgeEnabled: true, package: "com.eventscircle.presence" },
     plugins: [
       "expo-secure-store",
