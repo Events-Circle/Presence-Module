@@ -296,7 +296,7 @@ test("viewer cannot edit or publish and has clear guidance", async ({
   await expect(button(page, "+ Add")).toHaveCount(0);
   await expect(page.getByText(/An owner or editor can add/)).toBeVisible();
   await tab(page, "Profile");
-  await expect(button(page, "Edit profile")).toHaveCount(0);
+  await expect(button(page, "Edit all profile details")).toHaveCount(0);
   await expect(button(page, "Publish page")).toHaveCount(0);
   await expect(page.getByText(/You have view-only access/)).toBeVisible();
 });
@@ -305,7 +305,7 @@ test("version conflict keeps edits and gives recovery guidance", async ({
 }) => {
   await fixture(page, { conflict: true });
   await tab(page, "Profile");
-  await button(page, "Edit profile").click();
+  await button(page, "Edit all profile details").click();
   await page.getByLabel("Tagline", { exact: true }).fill("My new tagline");
   await button(page, "Save profile").click();
   await expect(page.getByText(/This item changed/)).toBeVisible();
@@ -345,15 +345,15 @@ test("editor role edits presence but cannot edit shared business identity", asyn
 }) => {
   await fixture(page, { role: "EDITOR" });
   await tab(page, "Profile");
-  await expect(button(page, "Edit profile")).toBeVisible();
-  await expect(button(page, "Edit business identity & contact")).toHaveCount(0);
+  await expect(button(page, "Edit all profile details")).toBeVisible();
+  await expect(button(page, "Edit business information")).toHaveCount(0);
 });
 test("private media carries credentials on web and form upload remains usable", async ({
   page,
 }) => {
   const state = await fixture(page);
   await tab(page, "Profile");
-  await button(page, "Edit profile").click();
+  await button(page, "Edit all profile details").click();
   const chooser = page.waitForEvent("filechooser");
   await button(page, "Choose logo").click();
   await (
@@ -490,7 +490,7 @@ test("web layout keeps navigation and editor fields within the viewport", async 
       path: testInfo.outputPath(name.toLowerCase() + ".png"),
     });
   }
-  await button(page, "Edit profile").click();
+  await button(page, "Edit all profile details").click();
   await expect(
     page.getByLabel("Public page address · e.g. ever-after-events"),
   ).toBeVisible();
@@ -501,7 +501,7 @@ test("business editing validates required details and preserves API ownership", 
 }) => {
   const state = await fixture(page);
   await tab(page, "Profile");
-  await button(page, "Edit business identity & contact").click();
+  await button(page, "Edit business information").click();
   await page.getByLabel("Business name", { exact: true }).fill("");
   await button(page, "Save business").click();
   await expect(
@@ -535,7 +535,7 @@ test("invalid profile address and media upload failure keep the editor usable", 
 }) => {
   await fixture(page);
   await tab(page, "Profile");
-  await button(page, "Edit profile").click();
+  await button(page, "Edit all profile details").click();
   await page
     .getByLabel("Public page address · e.g. ever-after-events")
     .fill("bad address");
@@ -644,7 +644,7 @@ test("switching businesses clears old content and sends the selected organizatio
   await expect(
     page.getByText("Other Studio · viewer", { exact: true }),
   ).toBeVisible();
-  await expect(button(page, "Edit profile")).toHaveCount(0);
+  await expect(button(page, "Edit all profile details")).toHaveCount(0);
 });
 
 test("business setup uses searchable choices and accepts human phone formatting", async ({
@@ -652,7 +652,7 @@ test("business setup uses searchable choices and accepts human phone formatting"
 }, testInfo) => {
   const state = await fixture(page);
   await tab(page, "Profile");
-  await button(page, "Edit business identity & contact").click();
+  await button(page, "Edit business information").click();
   await expect(page.getByText("Fields marked * are required.")).toBeVisible();
   await button(page, "Category").click();
   await page
@@ -729,7 +729,7 @@ test("user walkthrough exposes clear next steps across every main screen", async
   await button(page, "Discard changes").click();
   await tab(page, "Profile");
   await page.screenshot({ path: testInfo.outputPath("06-profile.png") });
-  await button(page, "Edit profile").click();
+  await button(page, "Edit all profile details").click();
   await expect(
     page.getByLabel("Show phone publicly", { exact: true }),
   ).toBeDisabled();
@@ -738,4 +738,152 @@ test("user walkthrough exposes clear next steps across every main screen", async
   await page.screenshot({
     path: testInfo.outputPath("08-contact-privacy.png"),
   });
+});
+
+test("focused profile editors preserve other sections and explain live saves", async ({
+  page,
+}, testInfo) => {
+  const state = await fixture(page, { published: true });
+  await tab(page, "Profile");
+  await expect(button(page, "Edit introduction")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("profile-sections.png"),
+    fullPage: true,
+  });
+  await button(page, "Edit introduction").click();
+  await expect(
+    page.getByText(
+      "Your page is published. Saving updates the public page immediately.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Public page address · e.g. ever-after-events"),
+  ).toHaveCount(0);
+  await expect(button(page, "Choose logo")).toHaveCount(0);
+  await page
+    .getByLabel("Tagline", { exact: true })
+    .fill("Celebrations with character");
+  await page.screenshot({
+    path: testInfo.outputPath("introduction-editor.png"),
+  });
+  await button(page, "Save profile").click();
+  await expect(button(page, "Edit introduction")).toBeVisible();
+  expect(state.profile.slug).toBe("qa-studio");
+  expect(state.profile.description).toBe("A thoughtful event studio.");
+  expect(state.profile.published).toBe(true);
+  expect(state.profile.tagline).toBe("Celebrations with character");
+  await button(page, "Edit page address").click();
+  await expect(page.getByLabel("Tagline", { exact: true })).toHaveCount(0);
+  await page
+    .getByLabel("Public page address · e.g. ever-after-events")
+    .fill("new-studio");
+  await button(page, "Close").click();
+  await button(page, "Discard changes").click();
+  expect(state.profile.slug).toBe("qa-studio");
+  await button(page, "Edit public contact details").click();
+  await expect(
+    page.getByLabel("Show phone publicly", { exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByLabel("Tagline", { exact: true })).toHaveCount(0);
+  await button(page, "Close").click();
+  await button(page, "Edit brand images").click();
+  await expect(button(page, "Choose logo")).toBeVisible();
+  await expect(page.getByLabel("Tagline", { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("brand-editor.png") });
+});
+
+test("public preview hides empty sections and never substitutes private profile content", async ({
+  page,
+}, testInfo) => {
+  const state = await fixture(page, { published: true });
+  await page.route(api + "/api/v1/presence/public/qa-studio", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ...state.profile,
+        description: "",
+        tagline: "",
+        logoMediaId: null,
+        coverMediaId: null,
+        supplier: {
+          businessName: "Public Studio",
+          category: "Photography",
+          city: "Beirut",
+        },
+        portfolio: [],
+        listings: [],
+        gallery: [],
+      }),
+    }),
+  );
+  await button(page, "Preview page").click();
+  await expect(page.getByText("Public Studio", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("A thoughtful event studio.", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByText("Made for you", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText("Services & packages", { exact: true }),
+  ).toHaveCount(0);
+  await expect(button(page, "Call business")).toHaveCount(0);
+  await expect(button(page, "Email business")).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("public-preview.png") });
+});
+
+test("customer preview presents saved services and prices with approved contact actions", async ({
+  page,
+}, testInfo) => {
+  await fixture(page, { published: true });
+  await page.route(api + "/api/v1/presence/public/qa-studio", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        slug: "qa-studio",
+        description:
+          "Intimate celebrations and thoughtful details, from the first idea to the last dance.",
+        tagline: "Celebrations with character",
+        logoMediaId: "image-1",
+        coverMediaId: null,
+        supplier: {
+          businessName: "QA Studio",
+          category: "Event planner",
+          city: "Beirut",
+          contactEmail: "hello@example.com",
+        },
+        portfolio: [
+          {
+            id: "project",
+            title: "Garden wedding",
+            summary: "An intimate outdoor celebration.",
+            media: [],
+          },
+        ],
+        listings: [
+          {
+            id: "package",
+            title: "Celebration planning",
+            summary: "Planning support for your special day.",
+            pricingMode: "FROM",
+            amountMinor: 125000,
+            currency: "USD",
+            media: [],
+          },
+        ],
+        gallery: [],
+      }),
+    }),
+  );
+  await button(page, "Preview page").click();
+  await expect(
+    page.getByText("Celebrations with character", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("From USD 1250.00", { exact: true }),
+  ).toBeVisible();
+  await expect(button(page, "Email business")).toBeVisible();
+  await expect(button(page, "Call business")).toHaveCount(0);
+  await page
+    .getByText("Celebrations with character", { exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("customer-preview.png") });
 });

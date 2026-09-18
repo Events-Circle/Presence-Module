@@ -1,3 +1,9 @@
+import {
+  ProfileSections,
+  profileSectionTitles,
+  type ProfileSection,
+} from "./mobile/ProfileSections";
+import { ProfilePreview } from "./mobile/ProfilePreview";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -48,7 +54,8 @@ import { readinessLabel } from "./src/formatting";
 import { AuthForm } from "./mobile/AuthForm";
 type Tab = "Overview" | "Portfolio" | "Listings" | "Profile";
 type Editor =
-  | { kind: "profile" | "business" | "preview" | "share" }
+  | { kind: "business" | "preview" | "share" }
+  | { kind: "profile"; section?: ProfileSection }
   | {
       kind: "content";
       collection: Collection;
@@ -944,12 +951,23 @@ function AppBody() {
           {data && tab === "Listings" && contentCards("listings")}
           {data && tab === "Profile" && (
             <>
-              <Text style={s.h1}>Your profile</Text>
+              <Text style={s.h1}>Your public profile</Text>
               <Text style={s.body}>
                 {supplier?.businessName} · {role?.toLowerCase()}
               </Text>
+              <Text style={s.body}>
+                Build a page that helps clients understand your business. Edit
+                one section at a time.
+              </Text>
+              <ProfileSections
+                data={data}
+                canEdit={edit}
+                isOwner={role === "OWNER"}
+                onBusiness={() => setEditor({ kind: "business" })}
+                onEdit={(section) => setEditor({ kind: "profile", section })}
+              />
               <Card>
-                <Text style={s.h2}>Publication</Text>
+                <Text style={s.h2}>Preview and publishing</Text>
                 <Tag text={p?.published ? "Published" : "Draft"} />
                 <Text style={s.body}>
                   {data.readiness?.missing.length
@@ -961,12 +979,13 @@ function AppBody() {
                 {edit && (
                   <>
                     <Button
-                      label="Edit profile"
+                      label="Edit all profile details"
+                      secondary
                       onPress={() => setEditor({ kind: "profile" })}
                     />
                     <Button
                       label={p?.published ? "Unpublish page" : "Publish page"}
-                      secondary
+                      secondary={!!p?.published}
                       disabled={
                         busy || !p || (!p.published && !data.readiness?.ready)
                       }
@@ -987,13 +1006,18 @@ function AppBody() {
                   </>
                 )}
               </Card>
-              {role === "OWNER" && (
-                <Button
-                  label="Edit business identity & contact"
-                  secondary
-                  onPress={() => setEditor({ kind: "business" })}
-                />
-              )}
+              <Button
+                label="Preview page"
+                secondary
+                disabled={!p}
+                onPress={() => void showPublic()}
+              />
+              <Button
+                label="Link & QR"
+                secondary
+                disabled={!p?.published}
+                onPress={() => void showShare()}
+              />
               <Heading title="Your businesses" />
               {members.map((m) => (
                 <Button
@@ -1092,7 +1116,7 @@ function AppBody() {
               {editor?.kind === "business"
                 ? "Business details"
                 : editor?.kind === "profile"
-                  ? "Your public profile"
+                  ? profileSectionTitles[editor.section || "all"]
                   : editor?.kind === "content"
                     ? (editor.item ? "Edit " : "New ") +
                       (editor.collection === "portfolio"
@@ -1121,6 +1145,7 @@ function AppBody() {
             >
               {data && editor?.kind === "profile" && (
                 <ProfileForm
+                  section={editor.section}
                   data={data}
                   org={org}
                   onSaved={saved}
@@ -1213,10 +1238,6 @@ function AppBody() {
               )}
               {editor?.kind === "preview" && (
                 <>
-                  <Text style={s.h1}>
-                    {publicData?.supplier.businessName ||
-                      supplier?.businessName}
-                  </Text>
                   {!!modalError && <Text style={s.body}>{modalError}</Text>}
                   {p?.published && !publicData && !modalError ? (
                     <ActivityIndicator />
@@ -1226,50 +1247,13 @@ function AppBody() {
                       onPress={() => void showPublic()}
                     />
                   ) : (
-                    <>
-                      <Photo
-                        id={publicData?.coverMediaId || p?.coverMediaId}
+                    data && (
+                      <ProfilePreview
+                        data={data}
+                        publicData={publicData}
                         org={org}
-                        height={220}
                       />
-                      <Text style={s.h2}>
-                        {publicData?.tagline || p?.tagline}
-                      </Text>
-                      <Text style={s.body}>
-                        {publicData?.description || p?.description}
-                      </Text>
-                      {(["portfolio", "listings", "gallery"] as const).map(
-                        (collection) => (
-                          <View key={collection} style={{ gap: 12 }}>
-                            <Heading
-                              title={
-                                collection.charAt(0).toUpperCase() +
-                                collection.slice(1)
-                              }
-                            />
-                            {(
-                              publicData?.[collection] ||
-                              active(data?.content[collection] || [])
-                            ).map((item) => (
-                              <Card key={item.id}>
-                                <Photo id={item.media[0]?.mediaId} org={org} />
-                                <Text style={s.h2}>{item.title}</Text>
-                                {!p?.published && (
-                                  <Tag
-                                    text={
-                                      "status" in item
-                                        ? String(item.status).toLowerCase()
-                                        : "draft"
-                                    }
-                                  />
-                                )}
-                                <Text style={s.body}>{item.summary}</Text>
-                              </Card>
-                            ))}
-                          </View>
-                        ),
-                      )}
-                    </>
+                    )
                   )}
                 </>
               )}

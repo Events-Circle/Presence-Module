@@ -1,3 +1,4 @@
+import { profileSectionTitles, type ProfileSection } from "./ProfileSections";
 import { DateField } from "./DateField";
 import React, { useState, useEffect, useRef } from "react";
 import { ScrollView, Switch, Text, View, Pressable } from "react-native";
@@ -266,13 +267,17 @@ export function ProfileForm({
   org,
   onSaved,
   onState,
+  section = "all",
 }: {
+  section?: ProfileSection;
   data: Snapshot;
   org: string;
   onSaved: () => Promise<void>;
   onState?: EditorState;
 }) {
   const p = data.profile;
+  const visible = (name: ProfileSection) =>
+    section === "all" || section === name;
   const [slug, setSlug] = useState(p?.slug || "");
   const [description, setDescription] = useState(p?.description || "");
   const [tagline, setTagline] = useState(p?.tagline || "");
@@ -350,88 +355,125 @@ export function ProfileForm({
         borderColor: C.line,
       }}
     >
-      <Text style={s.h2}>Edit your presence</Text>
+      <Text style={s.h2}>{profileSectionTitles[section]}</Text>
       <Text style={s.body}>
-        Build the page clients will see. Fields marked * are required to save.
-        You can finish your images and description before publishing.
+        {p?.published
+          ? "Your page is published. Saving updates the public page immediately."
+          : "These changes stay unpublished until you publish your page."}
       </Text>
-      <Field
-        label="Public page address · e.g. ever-after-events"
-        required
-        maxLength={80}
-        hint="This is your unique page name, not a full website URL. Use lowercase letters, numbers and hyphens."
-        value={slug}
-        onChange={(value) => setSlug(value.toLowerCase())}
-      />
-      <Field
-        label="Tagline"
-        value={tagline}
-        onChange={setTagline}
-        maxLength={200}
-        hint="Optional. A short sentence that describes what makes your business different."
-        placeholder="Thoughtful celebrations, beautifully planned"
-      />
-      <Field
-        label="About your business"
-        maxLength={4000}
-        hint="Tell clients what you offer, who you work with and where you operate. Required before publishing."
-        value={description}
-        onChange={setDescription}
-        multiline
-      />
-      <View style={s.grid}>
-        {(["logo", "cover"] as const).map((kind) => (
-          <View key={kind} style={s.tile}>
-            <Text style={s.label}>
-              {kind === "logo" ? "Business logo" : "Cover image"}
+      {(visible("address") || !p) && (
+        <>
+          <Field
+            label="Public page address · e.g. ever-after-events"
+            required
+            maxLength={80}
+            hint="This is your unique page name, not a full website URL. Use lowercase letters, numbers and hyphens."
+            value={slug}
+            onChange={(value) => setSlug(value.toLowerCase())}
+          />
+          <Text style={s.body}>
+            Availability is confirmed when you save. Changing a published page
+            name can affect previously shared links.
+          </Text>
+        </>
+      )}
+      {visible("introduction") && (
+        <>
+          <Field
+            label="Tagline"
+            value={tagline}
+            onChange={setTagline}
+            maxLength={200}
+            hint="Optional. A short sentence that describes what makes your business different."
+            placeholder="Thoughtful celebrations, beautifully planned"
+          />
+          <Field
+            label="About your business"
+            maxLength={4000}
+            hint="Tell clients what you offer, who you work with and where you operate. Required before publishing."
+            value={description}
+            onChange={setDescription}
+            multiline
+          />
+        </>
+      )}
+      {visible("images") && (
+        <>
+          <View style={{ gap: 20 }}>
+            {(["logo", "cover"] as const).map((kind) => (
+              <View key={kind} style={{ gap: 10 }}>
+                <Text style={s.label}>
+                  {kind === "logo" ? "Business logo" : "Cover image"}
+                </Text>
+                <Text style={[s.body, { fontSize: 12 }]}>
+                  {kind === "logo"
+                    ? "A simple square image works best."
+                    : "Choose a wide image of your work."}
+                </Text>
+                <View style={kind === "logo" ? { width: 112 } : undefined}>
+                  <Photo
+                    id={kind === "logo" ? logo : cover}
+                    org={org}
+                    height={kind === "logo" ? 112 : 175}
+                  />
+                </View>
+                <Button
+                  label={`Choose ${kind}`}
+                  secondary
+                  disabled={busy}
+                  onPress={() => void upload(kind)}
+                />
+                {!!(kind === "logo" ? logo : cover) && (
+                  <Button
+                    label={`Remove ${kind}`}
+                    secondary
+                    disabled={busy}
+                    onPress={() => (kind === "logo" ? setLogo : setCover)(null)}
+                  />
+                )}
+              </View>
+            ))}
+          </View>
+          <Text style={s.body}>
+            JPEG, PNG or WebP · up to 5 MB. Your changes go live immediately if
+            the profile is already published.
+          </Text>
+        </>
+      )}
+      {visible("contact") && (
+        <>
+          <Text style={s.h2}>Contact visibility</Text>
+          <Text style={s.body}>
+            These switches show your business contact details on your published
+            page. Turning them off keeps those details private.
+          </Text>
+          <View style={s.row}>
+            <Text style={[s.label, { flex: 1 }]}>
+              Show contact email publicly
             </Text>
-            <Text style={[s.body, { fontSize: 12 }]}>
-              {kind === "logo"
-                ? "A simple square image works best."
-                : "Choose a wide image of your work."}
-            </Text>
-            <Photo id={kind === "logo" ? logo : cover} org={org} />
-            <Button
-              label={`Choose ${kind}`}
-              secondary
-              disabled={busy}
-              onPress={() => void upload(kind)}
+            <Switch
+              accessibilityLabel="Show contact email publicly"
+              disabled={!data.supplier.contactEmail}
+              value={showEmail}
+              onValueChange={setShowEmail}
             />
           </View>
-        ))}
-      </View>
-      <Text style={s.body}>
-        JPEG, PNG or WebP · up to 5 MB. Your changes go live immediately if the
-        profile is already published.
-      </Text>
-      <Text style={s.h2}>Public contact details</Text>
-      <Text style={s.body}>
-        These switches show your business contact details on your published
-        page. Turning them off keeps those details private.
-      </Text>
-      <View style={s.row}>
-        <Text style={[s.label, { flex: 1 }]}>Show contact email publicly</Text>
-        <Switch
-          accessibilityLabel="Show contact email publicly"
-          disabled={!data.supplier.contactEmail}
-          value={showEmail}
-          onValueChange={setShowEmail}
-        />
-      </View>
-      <View style={s.row}>
-        <Text style={[s.label, { flex: 1 }]}>Show phone publicly</Text>
-        <Switch
-          accessibilityLabel="Show phone publicly"
-          disabled={!data.supplier.contactPhone}
-          value={showPhone}
-          onValueChange={setShowPhone}
-        />
-      </View>
-      {(!data.supplier.contactEmail || !data.supplier.contactPhone) && (
-        <Text style={s.body}>
-          Missing contact details? An owner can add them in Profile → Edit
-          business identity & contact.
-        </Text>
+          <View style={s.row}>
+            <Text style={[s.label, { flex: 1 }]}>Show phone publicly</Text>
+            <Switch
+              accessibilityLabel="Show phone publicly"
+              disabled={!data.supplier.contactPhone}
+              value={showPhone}
+              onValueChange={setShowPhone}
+            />
+          </View>
+          {(!data.supplier.contactEmail || !data.supplier.contactPhone) && (
+            <Text style={s.body}>
+              Missing contact details? An owner can add them in Profile → Edit
+              business information.
+            </Text>
+          )}
+        </>
       )}
       {!!error && (
         <Text accessibilityRole="alert" style={s.error}>
