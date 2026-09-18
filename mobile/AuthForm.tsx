@@ -40,9 +40,15 @@ export function AuthForm(p: Props) {
     kind: "name" | "email" | "password",
   ) => (
     <View style={[s.field, focused === kind && s.focused]}>
-      <Text style={s.label}>{label}</Text>
+      <Text style={s.label}>{label} *</Text>
       <TextInput
         accessibilityLabel={label}
+        aria-required
+        accessibilityHint={
+          kind === "password" && p.register
+            ? "Use 12 to 128 characters. You can show or hide your password."
+            : "Required"
+        }
         value={value}
         onChangeText={onChange}
         editable={!p.busy}
@@ -128,6 +134,7 @@ export function AuthForm(p: Props) {
                 ? "One account for the Events Circle ecosystem."
                 : "Sign in to manage your business presence."}
             </Text>
+            <Text style={s.note}>All fields are required.</Text>
             <View style={s.fields}>
               {p.register && field("Your name", p.name, p.setName, "name")}
               {field("Email address", p.email, p.setEmail, "email")}
@@ -138,6 +145,14 @@ export function AuthForm(p: Props) {
                 "password",
               )}
             </View>
+            {p.register && (
+              <Text style={s.note}>
+                Use 12–128 characters for your password. Spaces are allowed.
+              </Text>
+            )}
+            {disabled && !p.busy && (
+              <Text style={s.note}>Complete the fields above to continue.</Text>
+            )}
             {!!p.error && (
               <Text accessibilityRole="alert" style={s.error}>
                 {p.error}

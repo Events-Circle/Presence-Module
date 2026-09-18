@@ -38,16 +38,22 @@ export function Button({
   onPress,
   secondary = false,
   disabled = false,
+  selected,
 }: {
   label: string;
   onPress: () => void;
   secondary?: boolean;
   disabled?: boolean;
+  selected?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      aria-pressed={selected}
+      accessibilityState={{
+        disabled,
+        ...(selected !== undefined ? { selected } : {}),
+      }}
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
@@ -98,6 +104,10 @@ export function Field({
   secret = false,
   multiline = false,
   keyboard = "default",
+  required = false,
+  hint,
+  maxLength,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -105,12 +115,25 @@ export function Field({
   secret?: boolean;
   multiline?: boolean;
   keyboard?: "default" | "email-address" | "decimal-pad";
+  required?: boolean;
+  hint?: string;
+  maxLength?: number;
+  placeholder?: string;
 }) {
   return (
     <View style={{ gap: 7 }}>
-      <Text style={s.label}>{label}</Text>
+      <Text style={s.label}>
+        {label}
+        {required && <Text style={{ color: "#6741CE" }}> *</Text>}
+      </Text>
+      {!!hint && <Text style={[s.body, { fontSize: 13 }]}>{hint}</Text>}
       <TextInput
         accessibilityLabel={label}
+        accessibilityHint={hint}
+        aria-required={required}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        placeholderTextColor={C.muted}
         value={value}
         onChangeText={onChange}
         secureTextEntry={secret}
@@ -122,9 +145,15 @@ export function Field({
         autoCorrect={!secret && keyboard !== "email-address"}
         style={[
           s.input,
+          { backgroundColor: "#F8F9FC", borderRadius: 14 },
           multiline && { minHeight: 105, textAlignVertical: "top" },
         ]}
       />
+      {!!maxLength && (
+        <Text style={{ color: C.muted, fontSize: 12, alignSelf: "flex-end" }}>
+          {value.length} / {maxLength}
+        </Text>
+      )}
     </View>
   );
 }

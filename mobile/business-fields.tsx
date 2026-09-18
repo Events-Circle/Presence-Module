@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import {
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -152,7 +153,7 @@ export function SearchSelect({
       <Modal
         visible={open}
         transparent
-        animationType="fade"
+        animationType={Platform.OS === "web" ? "none" : "fade"}
         onRequestClose={close}
       >
         <View
@@ -195,7 +196,9 @@ export function SearchSelect({
               placeholder={
                 custom
                   ? "Search or type your own"
-                  : "Search country or calling code"
+                  : label === "Country code"
+                    ? "Search country or calling code"
+                    : `Search ${label.toLowerCase()}`
               }
               value={query}
               maxLength={100}
@@ -225,7 +228,7 @@ export function SearchSelect({
               ))}
               {!filtered.length && (
                 <Text style={[s.body, { padding: 10 }]}>
-                  No matching {custom ? "categories" : "countries"}.
+                  No matching choices. Try a different search.
                 </Text>
               )}
               {custom &&

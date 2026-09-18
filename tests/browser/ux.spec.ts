@@ -184,10 +184,11 @@ test("listing price, editing, publish, archive cancellation and restore", async 
   await tab(page, "Listings");
   await button(page, "+ Add").click();
   await page.getByLabel("Title", { exact: true }).fill("Planning session");
+  await button(page, "Content category").click();
   await button(page, "Event planning").click();
   await button(page, "Starting from").click();
   await page.getByLabel("Price · e.g. 25.00").fill("25.50");
-  await button(page, "Save").click();
+  await button(page, "Save draft").click();
   await expect(
     page.getByText("Planning session", { exact: true }),
   ).toBeVisible();
@@ -235,13 +236,13 @@ test("portfolio and gallery creation, unsaved changes and scoped filters", async
   await button(page, "+ Add").click();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue("");
   await page.getByLabel("Title", { exact: true }).fill("Garden wedding");
-  await button(page, "Save").click();
-  expect(state.items.portfolio).toHaveLength(1);
+  await button(page, "Save draft").click();
+  await expect.poll(() => state.items.portfolio.length).toBe(1);
   await button(page, "Gallery").click();
   await button(page, "+ Add").click();
   await page.getByLabel("Title", { exact: true }).fill("Summer album");
-  await button(page, "Save").click();
-  expect(state.items.gallery).toHaveLength(1);
+  await button(page, "Save draft").click();
+  await expect.poll(() => state.items.gallery.length).toBe(1);
   await tab(page, "Listings");
   await button(page, "Product").click();
   await expect(
@@ -267,6 +268,7 @@ test("profile publication, draft preview and share availability", async ({
   await button(page, "Close").click();
   await tab(page, "Profile");
   await button(page, "Unpublish page").click();
+  await expect(button(page, "Publish page")).toBeVisible();
   expect(state.profile.published).toBe(false);
 });
 test("public preview failure does not present private content as public", async ({
@@ -379,20 +381,18 @@ test("offer expiry and price validation avoid accidental bad saves", async ({
   await button(page, "Offer").click();
   await button(page, "Fixed price").click();
   await page.getByLabel("Price · e.g. 25.00").fill("25.555");
-  await button(page, "Save").click();
+  await button(page, "Save draft").click();
   await expect(page.getByText(/up to 2 decimal places/)).toBeVisible();
   expect(state.items.listings).toHaveLength(0);
   await page.getByLabel("Price · e.g. 25.00").fill("25");
-  await page.getByLabel("Offer expiry · YYYY-MM-DD (UTC)").fill("2027-02-31");
-  await button(page, "Save").click();
-  await expect(
-    page.getByText("Enter a valid expiry date as YYYY-MM-DD.", { exact: true }),
-  ).toBeVisible();
-  await page.getByLabel("Offer expiry · YYYY-MM-DD (UTC)").fill("2027-12-31");
-  await button(page, "Save").click();
+  await button(page, "Choose expiry date").click();
+  const today = new Date();
+  const selected = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-15`;
+  await button(page, selected).click();
+  await button(page, "Save draft").click();
   await expect
     .poll(() => state.items.listings![0]?.validUntil)
-    .toBe("2027-12-31T23:59:59.999Z");
+    .toBe(selected + "T23:59:59.999Z");
 });
 test("publish errors name missing content and stay recoverable", async ({
   page,
@@ -401,7 +401,7 @@ test("publish errors name missing content and stay recoverable", async ({
   await tab(page, "Listings");
   await button(page, "+ Add").click();
   await page.getByLabel("Title", { exact: true }).fill("Draft");
-  await button(page, "Save").click();
+  await button(page, "Save draft").click();
   await page.route(
     api + "/api/v1/presence/collections/listings/*/publish",
     (route) =>
@@ -465,7 +465,9 @@ test("catalog failure can be retried without losing the draft", async ({
   await expect(button(page, "Retry categories")).toBeVisible();
   await page.unroute(api + "/api/v1/core/catalogs/categories");
   await button(page, "Retry categories").click();
+  await button(page, "Content category").click();
   await expect(button(page, "Event planning")).toBeVisible();
+  await button(page, "Close content category choices").click();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
     "Keep this draft",
   );
@@ -586,7 +588,7 @@ test("gallery images can be reordered and removed before saving", async ({
   }
   await button(page, "Make cover").click();
   await button(page, "Remove").last().click();
-  await button(page, "Save").click();
+  await button(page, "Save draft").click();
   await expect.poll(() => state.items.gallery?.length).toBe(1);
   expect(state.items.gallery![0].media).toEqual([
     { mediaId: "image-2", role: "COVER", altText: "Gallery" },
@@ -675,4 +677,65 @@ test("business setup uses searchable choices and accepts human phone formatting"
   )?.body;
   expect(saved.category).toBe("Creative production");
   expect(saved.contactPhone).toBe("+9611234567");
+});
+
+test("user walkthrough exposes clear next steps across every main screen", async ({
+  page,
+}, testInfo) => {
+  await fixture(page);
+  await expect(
+    page.getByText("Profile completion", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("01-overview.png") });
+  await tab(page, "Portfolio");
+  await page.screenshot({
+    path: testInfo.outputPath("02-portfolio-empty.png"),
+  });
+  await button(page, "+ Add").click();
+  await expect(
+    page.getByRole("textbox", { name: "Title", exact: true }),
+  ).toHaveAttribute("aria-required", "true");
+  await page.screenshot({ path: testInfo.outputPath("03-project-form.png") });
+  await button(page, "Close").click();
+  await button(page, "Gallery").click();
+  await button(page, "+ Add").click();
+  await expect(
+    page.getByText("Publishing a gallery requires at least one image.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await button(page, "Close").click();
+  await tab(page, "Listings");
+  await button(page, "Offer").click();
+  await button(page, "+ Add").click();
+  await expect(button(page, "Offer")).toHaveAttribute("aria-pressed", "true");
+  await button(page, "Fixed price").click();
+  await button(page, "Currency").click();
+  await page.getByLabel("Search currency", { exact: true }).fill("EUR");
+  await button(page, "EUR").click();
+  await expect(
+    page.getByText("Enter the amount in EUR, not cents.", { exact: true }),
+  ).toBeVisible();
+  await button(page, "Choose expiry date").click();
+  await page.screenshot({
+    path: testInfo.outputPath("04-expiry-calendar.png"),
+  });
+  await button(page, "Cancel date selection").click();
+  await button(page, "Save draft").scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath("05-listing-form-bottom.png"),
+  });
+  await button(page, "Close").click();
+  await button(page, "Discard changes").click();
+  await tab(page, "Profile");
+  await page.screenshot({ path: testInfo.outputPath("06-profile.png") });
+  await button(page, "Edit profile").click();
+  await expect(
+    page.getByLabel("Show phone publicly", { exact: true }),
+  ).toBeDisabled();
+  await page.screenshot({ path: testInfo.outputPath("07-profile-editor.png") });
+  await button(page, "Save profile").scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath("08-contact-privacy.png"),
+  });
 });

@@ -30,7 +30,7 @@ Create an account, set up a business, then complete the Presence profile. New ac
 - Profile description/tagline/slug, logo/cover upload, public contact visibility, readiness, publish/unpublish.
 - Portfolio, gallery and listing create/edit, image selection/upload, image descriptions and cover selection.
 - Draft/publish/unpublish/archive/restore with version checks and role-sensitive controls.
-- All listing types, pricing modes, offer expiry. Amount input is explicitly in minor currency units.
+- All listing types, pricing modes, offer expiry. Price input uses normal currency amounts (for example, USD 25.00); the app converts to API minor units.
 - Saved-content preview; published preview uses the public aggregate (up to six per collection).
 - Public link/QR/share/copy when the backend has a configured public website and the profile is published.
 - Explicit planned states for Circle AI, Content posts, Hosted Events, Presence reviews, WhatsApp and consultations.

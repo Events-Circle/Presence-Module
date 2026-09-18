@@ -49,7 +49,12 @@ import { AuthForm } from "./mobile/AuthForm";
 type Tab = "Overview" | "Portfolio" | "Listings" | "Profile";
 type Editor =
   | { kind: "profile" | "business" | "preview" | "share" }
-  | { kind: "content"; collection: Collection; item?: Content };
+  | {
+      kind: "content";
+      collection: Collection;
+      item?: Content;
+      initialType?: NonNullable<Content["type"]>;
+    };
 function formatPrice(amount: number, currency: string | null) {
   if (!currency) return "Price on request";
   try {
@@ -345,7 +350,16 @@ function AppBody() {
             <Button
               label="+ Add"
               disabled={!p || busy}
-              onPress={() => setEditor({ kind: "content", collection })}
+              onPress={() =>
+                setEditor({
+                  kind: "content",
+                  collection,
+                  ...(collection === "listings" &&
+                  ["PRODUCT", "SERVICE", "PACKAGE", "OFFER"].includes(filter)
+                    ? { initialType: filter as NonNullable<Content["type"]> }
+                    : {}),
+                })
+              }
             />
           )}
         </View>
@@ -370,6 +384,7 @@ function AppBody() {
               key={x}
               label={x.charAt(0) + x.slice(1).toLowerCase()}
               secondary={filter !== x}
+              selected={filter === x}
               onPress={() => setFilter(x)}
             />
           ))}
@@ -623,7 +638,7 @@ function AppBody() {
                     <Text
                       style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}
                     >
-                      Make it yours
+                      Profile completion
                     </Text>
                     <Text
                       style={{
@@ -641,6 +656,12 @@ function AppBody() {
                     </Text>
                   </View>
                 </View>
+                {!!data.readiness?.missing.length && (
+                  <Text style={{ color: "#FFFFFF", lineHeight: 21 }}>
+                    Next:{" "}
+                    {data.readiness.missing.map(readinessLabel).join(" · ")}
+                  </Text>
+                )}
                 {edit && (
                   <Button
                     label={
@@ -901,6 +922,7 @@ function AppBody() {
                 <Button
                   label="Projects"
                   secondary={gallery}
+                  selected={!gallery}
                   onPress={() => {
                     setGallery(false);
                     setFilter("ALL");
@@ -909,6 +931,7 @@ function AppBody() {
                 <Button
                   label="Gallery"
                   secondary={!gallery}
+                  selected={gallery}
                   onPress={() => {
                     setGallery(true);
                     setFilter("ALL");
@@ -1065,7 +1088,22 @@ function AppBody() {
           accessibilityElementsHidden={!!confirmation}
         >
           <View style={[s.row, { padding: 18 }]}>
-            <Text style={s.h2}>Presence</Text>
+            <Text style={[s.h2, { flex: 1 }]}>
+              {editor?.kind === "business"
+                ? "Business details"
+                : editor?.kind === "profile"
+                  ? "Your public profile"
+                  : editor?.kind === "content"
+                    ? (editor.item ? "Edit " : "New ") +
+                      (editor.collection === "portfolio"
+                        ? "project"
+                        : editor.collection === "gallery"
+                          ? "gallery"
+                          : "listing")
+                    : editor?.kind === "share"
+                      ? "Share your page"
+                      : "Page preview"}
+            </Text>
             <Button
               label="Close"
               secondary
@@ -1079,7 +1117,7 @@ function AppBody() {
           >
             <ScrollView
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={s.page}
+              contentContainerStyle={[s.page, { backgroundColor: "#EDF0FF" }]}
             >
               {data && editor?.kind === "profile" && (
                 <ProfileForm
@@ -1100,6 +1138,7 @@ function AppBody() {
               {editor?.kind === "content" && (
                 <ContentForm
                   collection={editor.collection}
+                  initialType={editor.initialType}
                   item={editor.item}
                   org={org}
                   onSaved={saved}
@@ -1241,7 +1280,7 @@ function AppBody() {
       <Modal
         visible={!!confirmation}
         transparent
-        animationType="fade"
+        animationType={Platform.OS === "web" ? "none" : "fade"}
         onRequestClose={() => setConfirmation(null)}
       >
         <View

@@ -115,7 +115,7 @@ test("account, full dashboard, versioned profile save, listing creation, and log
   await page.getByRole("tab", { name: "Listings", exact: true }).click();
   await page.getByRole("button", { name: "+ Add", exact: true }).click();
   await page.getByLabel("Title", { exact: true }).fill("Wedding planning");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(
     page.getByText("Wedding planning", { exact: true }),
   ).toBeVisible();

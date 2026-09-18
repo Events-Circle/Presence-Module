@@ -1,3 +1,4 @@
+import { DateField } from "./DateField";
 import React, { useState, useEffect, useRef } from "react";
 import { ScrollView, Switch, Text, View, Pressable } from "react-native";
 import { Button, Card, Field, Photo, s, C } from "./ui";
@@ -339,16 +340,41 @@ export function ProfileForm({
     }
   }
   return (
-    <View style={{ gap: 16 }}>
+    <View
+      style={{
+        gap: 20,
+        backgroundColor: "white",
+        borderRadius: 24,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: C.line,
+      }}
+    >
       <Text style={s.h2}>Edit your presence</Text>
+      <Text style={s.body}>
+        Build the page clients will see. Fields marked * are required to save.
+        You can finish your images and description before publishing.
+      </Text>
       <Field
         label="Public page address · e.g. ever-after-events"
+        required
+        maxLength={80}
+        hint="This is your unique page name, not a full website URL. Use lowercase letters, numbers and hyphens."
         value={slug}
-        onChange={setSlug}
+        onChange={(value) => setSlug(value.toLowerCase())}
       />
-      <Field label="Tagline" value={tagline} onChange={setTagline} />
+      <Field
+        label="Tagline"
+        value={tagline}
+        onChange={setTagline}
+        maxLength={200}
+        hint="Optional. A short sentence that describes what makes your business different."
+        placeholder="Thoughtful celebrations, beautifully planned"
+      />
       <Field
         label="About your business"
+        maxLength={4000}
+        hint="Tell clients what you offer, who you work with and where you operate. Required before publishing."
         value={description}
         onChange={setDescription}
         multiline
@@ -356,6 +382,14 @@ export function ProfileForm({
       <View style={s.grid}>
         {(["logo", "cover"] as const).map((kind) => (
           <View key={kind} style={s.tile}>
+            <Text style={s.label}>
+              {kind === "logo" ? "Business logo" : "Cover image"}
+            </Text>
+            <Text style={[s.body, { fontSize: 12 }]}>
+              {kind === "logo"
+                ? "A simple square image works best."
+                : "Choose a wide image of your work."}
+            </Text>
             <Photo id={kind === "logo" ? logo : cover} org={org} />
             <Button
               label={`Choose ${kind}`}
@@ -370,29 +404,42 @@ export function ProfileForm({
         JPEG, PNG or WebP · up to 5 MB. Your changes go live immediately if the
         profile is already published.
       </Text>
+      <Text style={s.h2}>Public contact details</Text>
+      <Text style={s.body}>
+        These switches show your business contact details on your published
+        page. Turning them off keeps those details private.
+      </Text>
       <View style={s.row}>
-        <Text style={s.label}>Show contact email publicly</Text>
+        <Text style={[s.label, { flex: 1 }]}>Show contact email publicly</Text>
         <Switch
           accessibilityLabel="Show contact email publicly"
+          disabled={!data.supplier.contactEmail}
           value={showEmail}
           onValueChange={setShowEmail}
         />
       </View>
       <View style={s.row}>
-        <Text style={s.label}>Show phone publicly</Text>
+        <Text style={[s.label, { flex: 1 }]}>Show phone publicly</Text>
         <Switch
           accessibilityLabel="Show phone publicly"
+          disabled={!data.supplier.contactPhone}
           value={showPhone}
           onValueChange={setShowPhone}
         />
       </View>
+      {(!data.supplier.contactEmail || !data.supplier.contactPhone) && (
+        <Text style={s.body}>
+          Missing contact details? An owner can add them in Profile → Edit
+          business identity & contact.
+        </Text>
+      )}
       {!!error && (
         <Text accessibilityRole="alert" style={s.error}>
           {error}
         </Text>
       )}
       <Button
-        label={busy ? "Working…" : "Save profile"}
+        label={busy ? "Saving profile…" : "Save profile"}
         disabled={busy}
         onPress={() => void save()}
       />
@@ -402,12 +449,14 @@ export function ProfileForm({
 export function ContentForm({
   collection,
   item,
+  initialType,
   org,
   onSaved,
   onState,
 }: {
   collection: Collection;
   item?: Content;
+  initialType?: NonNullable<Content["type"]> | undefined;
   org: string;
   onSaved: () => Promise<void>;
   onState?: EditorState;
@@ -417,7 +466,9 @@ export function ContentForm({
     [],
   );
   const [catalogError, setCatalogError] = useState("");
+  const [catalogLoading, setCatalogLoading] = useState(true);
   async function loadCategories() {
+    setCatalogLoading(true);
     setCatalogError("");
     try {
       setCategories(
@@ -432,6 +483,8 @@ export function ContentForm({
       setCatalogError(
         "Categories could not be loaded. You can save a draft and choose a category later.",
       );
+    } finally {
+      setCatalogLoading(false);
     }
   }
   useEffect(() => {
@@ -441,7 +494,7 @@ export function ContentForm({
   const [summary, setSummary] = useState(item?.summary || "");
   const [description, setDescription] = useState(item?.description || "");
   const [type, setType] = useState<NonNullable<Content["type"]>>(
-    item?.type || "SERVICE",
+    item?.type || initialType || "SERVICE",
   );
   const [pricing, setPricing] = useState<NonNullable<Content["pricingMode"]>>(
     item?.pricingMode || "ON_REQUEST",
@@ -570,7 +623,16 @@ export function ContentForm({
     }
   }
   return (
-    <View style={{ gap: 16 }}>
+    <View
+      style={{
+        gap: 20,
+        backgroundColor: "white",
+        borderRadius: 24,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: C.line,
+      }}
+    >
       <Text style={s.h2}>
         {item ? "Edit" : "Add"}{" "}
         {collection === "portfolio"
@@ -579,24 +641,42 @@ export function ContentForm({
             ? "gallery"
             : "listing"}
       </Text>
-      <Field label="Title" value={title} onChange={setTitle} />
-      <Text style={s.label}>Category · required to publish</Text>
-      {categories.length > 0 ? (
-        <View style={s.grid}>
-          {categories.map((c) => (
-            <Button
-              key={c.id}
-              label={c.label}
-              secondary={categoryId !== c.id}
-              disabled={busy}
-              onPress={() => setCategoryId(c.id)}
-            />
-          ))}
-        </View>
-      ) : (
+      <Text style={s.body}>
+        {item?.status === "PUBLISHED"
+          ? "This item is public. Saved changes appear immediately."
+          : "Start with a title and save a private draft. You can add the remaining details before publishing."}
+      </Text>
+      <Field
+        label="Title"
+        required
+        maxLength={160}
+        placeholder={
+          collection === "portfolio"
+            ? "e.g. A garden wedding in Beirut"
+            : collection === "gallery"
+              ? "e.g. Summer celebrations"
+              : "e.g. Full wedding planning"
+        }
+        value={title}
+        onChange={setTitle}
+      />
+      <SearchSelect
+        label="Content category"
+        value={categoryId}
+        options={categories.map((c) => ({ value: c.id, label: c.label }))}
+        onSelect={setCategoryId}
+      />
+      <Text style={s.body}>
+        {collection === "gallery"
+          ? "Optional. Choose a category to help organize your gallery."
+          : "Required to publish. Choose from the shared Events Circle categories."}
+      </Text>
+      {!categories.length && (
         <Text style={s.body}>
-          {catalogError ||
-            "No categories available yet. You can still save a draft."}
+          {catalogLoading
+            ? "Loading categories…"
+            : catalogError ||
+              "No categories available yet. You can still save a draft."}
         </Text>
       )}
       {!!catalogError && (
@@ -606,15 +686,32 @@ export function ContentForm({
           onPress={() => void loadCategories()}
         />
       )}
-      <Field label="Short summary" value={summary} onChange={setSummary} />
+      <Field
+        label="Short summary"
+        value={summary}
+        onChange={setSummary}
+        maxLength={500}
+        hint="Optional. A brief introduction shown on the item card."
+      />
       <Field
         label="Description"
+        maxLength={4000}
+        hint={
+          collection === "gallery"
+            ? "Optional. Give this set of images some context."
+            : "Describe what is included, who it is for and any important details. Required before publishing."
+        }
         value={description}
         onChange={setDescription}
         multiline
       />
       {collection === "listings" && (
         <>
+          <Text style={s.h2}>What are you offering?</Text>
+          <Text style={s.body}>
+            Product: an item. Service: work you provide. Package: a bundle.
+            Offer: a promotion.
+          </Text>
           <Text style={s.label}>Listing type</Text>
           <View style={s.grid}>
             {(["PRODUCT", "SERVICE", "PACKAGE", "OFFER"] as const).map((t) => (
@@ -622,11 +719,16 @@ export function ContentForm({
                 key={t}
                 label={t.charAt(0) + t.slice(1).toLowerCase()}
                 secondary={type !== t}
+                selected={type === t}
                 onPress={() => setType(t)}
               />
             ))}
           </View>
           <Text style={s.label}>Pricing</Text>
+          <Text style={s.body}>
+            On request: clients ask for a quote. Starting from: a minimum price.
+            Fixed price: one set amount. Free: no charge.
+          </Text>
           <View style={s.grid}>
             {(["ON_REQUEST", "FREE", "FROM", "FIXED"] as const).map((t) => (
               <Button
@@ -640,6 +742,7 @@ export function ContentForm({
                   }[t]
                 }
                 secondary={pricing !== t}
+                selected={pricing === t}
                 onPress={() => setPricing(t)}
               />
             ))}
@@ -648,39 +751,43 @@ export function ContentForm({
             <>
               <Field
                 label="Price · e.g. 25.00"
+                required
+                hint={`Enter the amount in ${currency}, not cents.`}
                 value={amount}
                 onChange={setAmount}
                 keyboard="decimal-pad"
               />
-              <Text style={s.label}>Currency</Text>
-              <View style={s.grid}>
-                {listingCurrencies.map((code) => (
-                  <Button
-                    key={code}
-                    label={code}
-                    secondary={currency !== code}
-                    disabled={busy}
-                    onPress={() => setCurrency(code)}
-                  />
-                ))}
-              </View>
+              <SearchSelect
+                label="Currency"
+                value={currency}
+                options={listingCurrencies.map((code) => ({
+                  value: code,
+                  label: code,
+                }))}
+                onSelect={setCurrency}
+              />
             </>
           )}
-          {type === "OFFER" && (
-            <Field
-              label="Offer expiry · YYYY-MM-DD (UTC)"
-              value={until}
-              onChange={setUntil}
-            />
-          )}
+          {type === "OFFER" && <DateField value={until} onChange={setUntil} />}
         </>
       )}
-      <Text style={s.label}>Images · first image is the cover</Text>
+      <Text style={s.h2}>Images</Text>
+      <Text style={s.body}>
+        The cover is the first image clients see. Add JPEG, PNG or WebP images
+        up to 5 MB each. Describe what each image shows for people using screen
+        readers.
+      </Text>
       {media.map((m, i) => (
         <Card key={m.mediaId}>
+          <Text style={s.label}>
+            {i === 0 ? "Cover image" : `Image ${i + 1}`}
+          </Text>
           <Photo id={m.mediaId} org={org} />
           <Field
             label="Image description for accessibility"
+            required
+            maxLength={300}
+            placeholder="e.g. White roses around an outdoor wedding arch"
             value={m.altText}
             onChange={(altText) =>
               setMedia(media.map((x, j) => (i === j ? { ...x, altText } : x)))
@@ -726,7 +833,10 @@ export function ContentForm({
         onPress={() => void upload()}
       />
       <Text style={s.body}>
-        Publishing requires a category, description and cover image.{"\n"}
+        {collection === "gallery"
+          ? "Publishing a gallery requires at least one image."
+          : "Publishing requires a category, description and cover image."}
+        {"\n"}
         {item?.status === "PUBLISHED"
           ? "Saving updates this published item immediately."
           : "Saved as a draft. You can publish it from the collection."}
@@ -737,7 +847,13 @@ export function ContentForm({
         </Text>
       )}
       <Button
-        label={busy ? "Working…" : "Save"}
+        label={
+          busy
+            ? "Saving…"
+            : item?.status === "PUBLISHED"
+              ? "Save changes"
+              : "Save draft"
+        }
         disabled={busy}
         onPress={() => void save()}
       />
