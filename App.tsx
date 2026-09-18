@@ -1,3 +1,4 @@
+import { EditorSaveProvider, FormFocusProvider } from "./mobile/EditorUX";
 import { ListingDetails } from "./mobile/ListingPricing";
 import {
   ProfileSections,
@@ -297,26 +298,35 @@ function AppBody() {
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={[
-              s.page,
-              {
-                backgroundColor: "transparent",
-                width: "100%",
-                maxWidth: 680,
-                alignSelf: "center",
-                paddingTop: 32,
-                paddingBottom: 40,
-              },
-            ]}
-          >
-            <Text style={[s.h1, { fontSize: 32, lineHeight: 38 }]}>
-              Welcome to Presence
-            </Text>
-            <BusinessForm onSaved={membership} />
-            <Button label="Sign out" secondary onPress={() => void logout()} />
-          </ScrollView>
+          <EditorSaveProvider dirty={editorState.dirty} busy={editorState.busy}>
+            <FormFocusProvider>
+              <ScrollView
+                keyboardDismissMode="on-drag"
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={[
+                  s.page,
+                  {
+                    backgroundColor: "transparent",
+                    width: "100%",
+                    maxWidth: 680,
+                    alignSelf: "center",
+                    paddingTop: 32,
+                    paddingBottom: 40,
+                  },
+                ]}
+              >
+                <Text style={[s.h1, { fontSize: 32, lineHeight: 38 }]}>
+                  Welcome to Presence
+                </Text>
+                <BusinessForm onSaved={membership} onState={setEditorState} />
+                <Button
+                  label="Sign out"
+                  secondary
+                  onPress={() => void logout()}
+                />
+              </ScrollView>
+            </FormFocusProvider>
+          </EditorSaveProvider>
         </KeyboardAvoidingView>
       </LinearGradient>
     );
@@ -651,23 +661,63 @@ function AppBody() {
                   </View>
                 </View>
                 {!!data.readiness?.missing.length && (
-                  <Text style={{ color: "#FFFFFF", lineHeight: 21 }}>
-                    Next:{" "}
-                    {data.readiness.missing.map(readinessLabel).join(" · ")}
-                  </Text>
+                  <View style={{ gap: 8 }}>
+                    <Text style={{ color: "white", fontWeight: "600" }}>
+                      Your next steps
+                    </Text>
+                    {data.readiness.missing.map((key) => (
+                      <Button
+                        key={key}
+                        label={readinessLabel(key)}
+                        secondary
+                        disabled={!edit}
+                        onPress={() => {
+                          if (
+                            [
+                              "supplier",
+                              "businessName",
+                              "category",
+                              "city",
+                            ].includes(key)
+                          ) {
+                            if (role === "OWNER")
+                              setEditor({ kind: "business" });
+                            else switchTab("Profile");
+                          } else if (key === "publishedContent")
+                            switchTab("Listings");
+                          else
+                            setEditor({
+                              kind: "profile",
+                              section: [
+                                "logo",
+                                "logoMediaId",
+                                "cover",
+                                "coverMediaId",
+                                "media",
+                              ].includes(key)
+                                ? "images"
+                                : key === "slug"
+                                  ? "address"
+                                  : ["description", "tagline"].includes(key)
+                                    ? "introduction"
+                                    : "all",
+                            });
+                        }}
+                      />
+                    ))}
+                  </View>
                 )}
                 {edit && (
                   <Button
                     label={
-                      p?.published ? "Edit profile →" : "Complete profile →"
+                      p?.published || data.readiness?.ready
+                        ? "Review profile →"
+                        : "Complete profile →"
                     }
                     secondary
-                    onPress={() => setEditor({ kind: "profile" })}
+                    onPress={() => switchTab("Profile")}
                   />
                 )}
-                <Text style={{ color: "#EAF2FF", fontSize: 11 }}>
-                  Circle AI assistance · Coming later
-                </Text>
               </LinearGradient>
               <Heading
                 title="Business identity"
@@ -679,7 +729,9 @@ function AppBody() {
                   : {})}
               />
               <Card>
-                <Photo id={p?.coverMediaId} org={org} height={132} />
+                {p?.coverMediaId && (
+                  <Photo id={p.coverMediaId} org={org} height={132} />
+                )}
                 <View
                   style={{
                     flexDirection: "row",
@@ -688,7 +740,23 @@ function AppBody() {
                   }}
                 >
                   <View style={{ width: 58 }}>
-                    <Photo id={p?.logoMediaId} org={org} height={58} />
+                    {p?.logoMediaId ? (
+                      <Photo id={p.logoMediaId} org={org} height={58} />
+                    ) : (
+                      <View
+                        style={{
+                          height: 58,
+                          borderRadius: 14,
+                          backgroundColor: "#EDF0FF",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text style={s.h2}>
+                          {supplier?.businessName.slice(0, 1).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.h2}>{supplier?.businessName}</Text>
@@ -699,7 +767,16 @@ function AppBody() {
                   </View>
                 </View>
               </Card>
-              <Heading title="Public portfolio" />
+              {edit && (!p?.logoMediaId || !p?.coverMediaId) && (
+                <Button
+                  label="Add brand images"
+                  secondary
+                  onPress={() =>
+                    setEditor({ kind: "profile", section: "images" })
+                  }
+                />
+              )}
+              <Heading title="Page preview" />
               <Card>
                 <View style={s.row}>
                   <Text style={[s.label, { flex: 1 }]}>
@@ -717,16 +794,9 @@ function AppBody() {
                     disabled={!p}
                     onPress={() => void showPublic()}
                   />
-                  <Button
-                    label="Link & QR"
-                    secondary
-                    disabled={!p?.published}
-                    onPress={() => void showShare()}
-                  />
                 </View>
                 <Text style={[s.body, { fontSize: 12 }]}>
-                  Sharing becomes available after your public website is
-                  connected.
+                  Review your saved content while you build your presence.
                 </Text>
               </Card>
               <Heading
@@ -838,49 +908,6 @@ function AppBody() {
                     ))}
                 </View>
               )}
-              <Planned
-                title="Event posts"
-                description="Your posts and updates will appear here when Content Studio is available."
-              />
-              <Planned
-                title="Hosted events"
-                description="Upcoming events, dates and venues will appear here when Hosted Events is available."
-              />
-              <Planned
-                title="Reviews summary"
-                description="Client ratings and feedback are planned for a later Presence release."
-              />
-              <Heading
-                title="Contact actions"
-                {...(role === "OWNER"
-                  ? {
-                      action: "Edit",
-                      onPress: () => setEditor({ kind: "business" }),
-                    }
-                  : {})}
-              />
-              <Card>
-                {[
-                  [
-                    "mail-outline",
-                    "Inquiry",
-                    supplier?.acceptInquiries &&
-                    data.modules.some((m) => m.id === "leads" && m.enabled)
-                      ? "Enabled"
-                      : "Disabled",
-                  ],
-                  ["logo-whatsapp", "WhatsApp", "Coming later"],
-                  ["calendar-outline", "Consultation", "Coming later"],
-                ].map(([icon, label, status]) => (
-                  <View key={label} style={[s.row, { paddingVertical: 7 }]}>
-                    <Icon
-                      name={icon as React.ComponentProps<typeof Icon>["name"]}
-                    />
-                    <Text style={[s.label, { flex: 1 }]}>{label}</Text>
-                    <Tag text={status!} />
-                  </View>
-                ))}
-              </Card>
               <Heading
                 title="Gallery"
                 action="Manage"
@@ -938,7 +965,7 @@ function AppBody() {
           {data && tab === "Listings" && contentCards("listings")}
           {data && tab === "Profile" && (
             <>
-              <Text style={s.h1}>Your public profile</Text>
+              <Text style={s.h1}>Business profile</Text>
               <Text style={s.body}>
                 {supplier?.businessName} · {role?.toLowerCase()}
               </Text>
@@ -1008,7 +1035,10 @@ function AppBody() {
                 disabled={!p?.published}
                 onPress={() => void showShare()}
               />
-              <Heading title="Your businesses" />
+              <Heading title="Account & businesses" />
+              <Text style={s.body}>
+                Switch the business you manage or sign out of your account.
+              </Text>
               {members.map((m) => (
                 <Button
                   key={m.organizationId}
@@ -1131,133 +1161,155 @@ function AppBody() {
             style={{ flex: 1 }}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
           >
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={[s.page, { backgroundColor: "#EDF0FF" }]}
+            <EditorSaveProvider
+              key={
+                editor?.kind +
+                (editor?.kind === "content"
+                  ? editor.item?.id || "new"
+                  : editor?.kind === "profile"
+                    ? editor.section || "all"
+                    : "")
+              }
+              dirty={editorState.dirty}
+              busy={editorState.busy}
             >
-              {data && editor?.kind === "profile" && (
-                <ProfileForm
-                  section={editor.section}
-                  data={data}
-                  org={org}
-                  onSaved={saved}
-                  onState={setEditorState}
-                />
-              )}
-              {data && editor?.kind === "details" && (
-                <CategoryDetailsForm
-                  data={data}
-                  org={org}
-                  onSaved={saved}
-                  onState={setEditorState}
-                />
-              )}
-              {data && editor?.kind === "business" && (
-                <BusinessForm
-                  supplier={data.supplier}
-                  org={org}
-                  onSaved={saved}
-                  onState={setEditorState}
-                />
-              )}
-              {editor?.kind === "content" && (
-                <ContentForm
-                  collection={editor.collection}
-                  initialType={editor.initialType}
-                  item={editor.item}
-                  org={org}
-                  onSaved={saved}
-                  onState={setEditorState}
-                />
-              )}
-              {editor?.kind === "share" && (
-                <>
-                  <Text style={s.h1}>Share your presence</Text>
-                  {modalError ? (
-                    <Text style={s.body}>{modalError}</Text>
-                  ) : share ? (
-                    <Card>
-                      {!!notice && (
-                        <Text accessibilityRole="alert" style={s.body}>
-                          {notice}
-                        </Text>
-                      )}
-                      <View style={{ alignItems: "center", padding: 16 }}>
-                        <QRCode value={share.qrPayload} size={190} />
-                      </View>
-                      <Text selectable style={s.body}>
-                        {share.url}
-                      </Text>
-                      <Button
-                        label="Open public page"
-                        onPress={() =>
-                          void Linking.openURL(share.url).catch(() =>
-                            setModalError("Could not open this link."),
-                          )
-                        }
-                      />
-                      <Button
-                        label={
-                          Platform.OS === "web"
-                            ? "Copy link to share"
-                            : "Share link"
-                        }
-                        secondary
-                        onPress={() =>
-                          void (
-                            Platform.OS === "web"
-                              ? Clipboard.setStringAsync(share.url).then(() =>
+              <FormFocusProvider>
+                <ScrollView
+                  keyboardDismissMode="on-drag"
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={[
+                    s.page,
+                    { backgroundColor: "#EDF0FF" },
+                  ]}
+                >
+                  {data && editor?.kind === "profile" && (
+                    <ProfileForm
+                      section={editor.section}
+                      data={data}
+                      org={org}
+                      onSaved={saved}
+                      onState={setEditorState}
+                    />
+                  )}
+                  {data && editor?.kind === "details" && (
+                    <CategoryDetailsForm
+                      data={data}
+                      org={org}
+                      onSaved={saved}
+                      onState={setEditorState}
+                    />
+                  )}
+                  {data && editor?.kind === "business" && (
+                    <BusinessForm
+                      supplier={data.supplier}
+                      org={org}
+                      onSaved={saved}
+                      onState={setEditorState}
+                    />
+                  )}
+                  {editor?.kind === "content" && (
+                    <ContentForm
+                      collection={editor.collection}
+                      initialType={editor.initialType}
+                      item={editor.item}
+                      org={org}
+                      onSaved={saved}
+                      onState={setEditorState}
+                    />
+                  )}
+                  {editor?.kind === "share" && (
+                    <>
+                      <Text style={s.h1}>Share your presence</Text>
+                      {modalError ? (
+                        <Text style={s.body}>{modalError}</Text>
+                      ) : share ? (
+                        <Card>
+                          {!!notice && (
+                            <Text accessibilityRole="alert" style={s.body}>
+                              {notice}
+                            </Text>
+                          )}
+                          <View style={{ alignItems: "center", padding: 16 }}>
+                            <QRCode value={share.qrPayload} size={190} />
+                          </View>
+                          <Text selectable style={s.body}>
+                            {share.url}
+                          </Text>
+                          <Button
+                            label="Open public page"
+                            onPress={() =>
+                              void Linking.openURL(share.url).catch(() =>
+                                setModalError("Could not open this link."),
+                              )
+                            }
+                          />
+                          <Button
+                            label={
+                              Platform.OS === "web"
+                                ? "Copy link to share"
+                                : "Share link"
+                            }
+                            secondary
+                            onPress={() =>
+                              void (
+                                Platform.OS === "web"
+                                  ? Clipboard.setStringAsync(share.url).then(
+                                      () =>
+                                        setNotice(
+                                          "Link copied. Ready to paste.",
+                                        ),
+                                    )
+                                  : Share.share({ message: share.url })
+                              ).catch(() =>
+                                setModalError(
+                                  "Could not share this link. You can select and copy the address above.",
+                                ),
+                              )
+                            }
+                          />
+                          <Button
+                            label="Copy link"
+                            secondary
+                            onPress={() =>
+                              void Clipboard.setStringAsync(share.url)
+                                .then(() =>
                                   setNotice("Link copied. Ready to paste."),
                                 )
-                              : Share.share({ message: share.url })
-                          ).catch(() =>
-                            setModalError(
-                              "Could not share this link. You can select and copy the address above.",
-                            ),
-                          )
-                        }
-                      />
-                      <Button
-                        label="Copy link"
-                        secondary
-                        onPress={() =>
-                          void Clipboard.setStringAsync(share.url)
-                            .then(() =>
-                              setNotice("Link copied. Ready to paste."),
-                            )
-                            .catch(() =>
-                              setModalError("Could not copy the link."),
-                            )
-                        }
-                      />
-                    </Card>
-                  ) : (
-                    <ActivityIndicator />
+                                .catch(() =>
+                                  setModalError("Could not copy the link."),
+                                )
+                            }
+                          />
+                        </Card>
+                      ) : (
+                        <ActivityIndicator />
+                      )}
+                    </>
                   )}
-                </>
-              )}
-              {editor?.kind === "preview" && (
-                <>
-                  {!!modalError && <Text style={s.body}>{modalError}</Text>}
-                  {p?.published && !publicData && !modalError ? (
-                    <ActivityIndicator />
-                  ) : p?.published && modalError ? (
-                    <Button
-                      label="Retry preview"
-                      onPress={() => void showPublic()}
-                    />
-                  ) : (
-                    data && (
-                      <ProfilePreview
-                        data={data}
-                        publicData={publicData}
-                        org={org}
-                      />
-                    )
+                  {editor?.kind === "preview" && (
+                    <>
+                      {!!modalError && <Text style={s.body}>{modalError}</Text>}
+                      {p?.published && !publicData && !modalError ? (
+                        <ActivityIndicator />
+                      ) : p?.published && modalError ? (
+                        <Button
+                          label="Retry preview"
+                          onPress={() => void showPublic()}
+                        />
+                      ) : (
+                        data && (
+                          <ProfilePreview
+                            data={data}
+                            publicData={publicData}
+                            org={org}
+                          />
+                        )
+                      )}
+                    </>
                   )}
-                </>
-              )}
-            </ScrollView>
+                </ScrollView>
+              </FormFocusProvider>
+            </EditorSaveProvider>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>

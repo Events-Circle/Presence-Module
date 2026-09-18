@@ -1,3 +1,4 @@
+import { useFieldFocus } from "./FormFocus";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -108,6 +109,7 @@ export function Field({
   hint,
   maxLength,
   placeholder,
+  error,
 }: {
   label: string;
   value: string;
@@ -119,7 +121,9 @@ export function Field({
   hint?: string;
   maxLength?: number;
   placeholder?: string;
+  error?: string | undefined;
 }) {
+  const focus = useFieldFocus(error);
   return (
     <View style={{ gap: 7 }}>
       <Text style={s.label}>
@@ -128,6 +132,10 @@ export function Field({
       </Text>
       {!!hint && <Text style={[s.body, { fontSize: 13 }]}>{hint}</Text>}
       <TextInput
+        ref={focus.ref}
+        onSubmitEditing={multiline ? undefined : focus.onSubmitEditing}
+        returnKeyType={multiline ? "default" : "next"}
+        aria-invalid={!!error}
         accessibilityLabel={label}
         accessibilityHint={hint}
         aria-required={required}
@@ -146,9 +154,15 @@ export function Field({
         style={[
           s.input,
           { backgroundColor: "#F8F9FC", borderRadius: 14 },
+          !!error && { borderColor: "#B42318" },
           multiline && { minHeight: 105, textAlignVertical: "top" },
         ]}
       />
+      {!!error && (
+        <Text accessibilityRole="alert" style={s.error}>
+          {error}
+        </Text>
+      )}
       {!!maxLength && (
         <Text style={{ color: C.muted, fontSize: 12, alignSelf: "flex-end" }}>
           {value.length} / {maxLength}

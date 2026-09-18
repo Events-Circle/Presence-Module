@@ -1,3 +1,4 @@
+import { SaveControl } from "./EditorUX";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { Button, Card, Field, s } from "./ui";
@@ -194,6 +195,7 @@ export function CategoryDetailsForm({
             {f.kind === "number" || f.kind === "text" ? (
               <Field
                 label={f.label}
+                error={errors[f.key]}
                 hint={`${f.hint}${f.unit ? ` Enter ${f.unit}.` : ""}`}
                 value={String(values[f.key] ?? "")}
                 onChange={(v) => setValue(f.key, v)}
@@ -262,11 +264,6 @@ export function CategoryDetailsForm({
                 )}
               </>
             )}
-            {!!errors[f.key] && (
-              <Text accessibilityRole="alert" style={s.error}>
-                {errors[f.key]}
-              </Text>
-            )}
           </Card>
         ))}
       </View>
@@ -275,7 +272,7 @@ export function CategoryDetailsForm({
           {error}
         </Text>
       )}
-      <Button
+      <SaveControl
         label={busy ? "Saving…" : "Save category details"}
         disabled={busy || !schema}
         onPress={() => void save()}

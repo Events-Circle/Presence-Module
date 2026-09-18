@@ -28,7 +28,11 @@ New fields: `priceUnit`, `inclusions`, `pricingNote`. Omission preserves existin
 
 ## Release status
 
-GitHub publishing access has been restored under accesslap1. The backend is published on main at `f3accdf7d621cf42f130e4cf2594629b7dc8d9f3`; the frontend contract is pinned to that commit. Railway deployment remains pending: the connected Railway account reports that it lacks the required member role on the Events Circle Staging project. Do not claim live API or Expo acceptance until the new backend is deployed.
+GitHub and Railway access were restored under accesslap1. The backend is published on main at `f3accdf7d621cf42f130e4cf2594629b7dc8d9f3`, with successful Railway deployment `0a9cc1c5-bac2-427e-8a21-ed9108f40950` on 18 September 2026. The frontend implementation was published at `56939491fa96a93ebc0c98db3c3882031862abc3` and pulled into the existing Codespace.
+
+Live staging checks passed: health, authenticated package creation and reloading, inclusion normalization, omission preservation, duplicate rejection, stale-version conflicts, free-mode unit clearing and unpublished-profile privacy. The synthetic QA listing was archived and its profile remains unpublished. No customer records were edited.
+
+Ngrok tunnel startup repeatedly failed. The working fallback uses the Codespace's public port 8081 and `EXPO_PACKAGER_PROXY_URL` set to its HTTPS forwarded URL before starting Expo with `--go --lan --port 8081`. The Android Expo manifest is publicly accessible and advertises HTTPS asset URLs. Use the `exps://` version of that host in Expo Go to require HTTPS. Port 4040 remains private. The Codespace must stay running; this is a development preview, not a standalone production website. Physical-device acceptance remains with the tester.
 
 ## Agreed remaining roadmap
 

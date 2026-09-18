@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -29,6 +29,25 @@ type Props = {
   onSubmit: () => void;
 };
 export function AuthForm(p: Props) {
+  const inputs = useRef<
+    Partial<Record<"name" | "email" | "password", TextInput | null>>
+  >({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const submit = () => {
+    const next: Record<string, string> = {};
+    if (p.register && !p.name.trim()) next.name = "Enter your name.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email.trim()))
+      next.email = "Enter a valid email address.";
+    if (!p.password) next.password = "Enter your password.";
+    else if (p.register && (p.password.length < 12 || p.password.length > 128))
+      next.password = "Use 12–128 characters.";
+    setErrors(next);
+    const first = (["name", "email", "password"] as const).find(
+      (key) => next[key],
+    );
+    if (first) inputs.current[first]?.focus();
+    else p.onSubmit();
+  };
   const [visible, setVisible] = useState(false);
   const [focused, setFocused] = useState("");
   const disabled =
@@ -39,61 +58,87 @@ export function AuthForm(p: Props) {
     onChange: (value: string) => void,
     kind: "name" | "email" | "password",
   ) => (
-    <View style={[s.field, focused === kind && s.focused]}>
-      <Text style={s.label}>{label} *</Text>
-      <TextInput
-        accessibilityLabel={label}
-        aria-required
-        accessibilityHint={
-          kind === "password" && p.register
-            ? "Use 12 to 128 characters. You can show or hide your password."
-            : "Required"
-        }
-        value={value}
-        onChangeText={onChange}
-        editable={!p.busy}
-        onFocus={() => setFocused(kind)}
-        onBlur={() => setFocused("")}
-        secureTextEntry={kind === "password" && !visible}
-        keyboardType={kind === "email" ? "email-address" : "default"}
-        autoCapitalize={kind === "name" ? "words" : "none"}
-        autoCorrect={false}
-        autoComplete={
-          kind === "name"
-            ? "name"
-            : kind === "email"
-              ? "email"
-              : p.register
-                ? "new-password"
-                : "current-password"
-        }
-        placeholder={
-          kind === "name"
-            ? "Your name"
-            : kind === "email"
-              ? "you@example.com"
-              : "Enter your password"
-        }
-        placeholderTextColor="#8993A4"
-        style={[s.input, kind === "password" && { paddingRight: 52 }]}
-        returnKeyType={kind === "password" ? "go" : "next"}
-        onSubmitEditing={
-          kind === "password" && !disabled ? p.onSubmit : undefined
-        }
-      />
-      {kind === "password" && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={visible ? "Hide password" : "Show password"}
-          onPress={() => setVisible(!visible)}
-          style={s.eye}
-        >
-          <Icon
-            name={visible ? "eye-off-outline" : "eye-outline"}
-            size={21}
-            color="#596A85"
-          />
-        </Pressable>
+    <View style={{ gap: 6 }}>
+      <View
+        style={[
+          s.field,
+          focused === kind && s.focused,
+          !!errors[kind] && { borderColor: "#B42318" },
+        ]}
+      >
+        <Text style={s.label}>{label} *</Text>
+        <TextInput
+          ref={(input) => {
+            inputs.current[kind] = input;
+          }}
+          aria-invalid={!!errors[kind]}
+          accessibilityLabel={label}
+          aria-required
+          accessibilityHint={
+            kind === "password" && p.register
+              ? "Use 12 to 128 characters. You can show or hide your password."
+              : "Required"
+          }
+          value={value}
+          onChangeText={(value) => {
+            onChange(value);
+            setErrors((current) => ({ ...current, [kind]: "" }));
+          }}
+          editable={!p.busy}
+          onFocus={() => setFocused(kind)}
+          onBlur={() => setFocused("")}
+          secureTextEntry={kind === "password" && !visible}
+          keyboardType={kind === "email" ? "email-address" : "default"}
+          autoCapitalize={kind === "name" ? "words" : "none"}
+          autoCorrect={false}
+          autoComplete={
+            kind === "name"
+              ? "name"
+              : kind === "email"
+                ? "email"
+                : p.register
+                  ? "new-password"
+                  : "current-password"
+          }
+          placeholder={
+            kind === "name"
+              ? "Your name"
+              : kind === "email"
+                ? "you@example.com"
+                : "Enter your password"
+          }
+          placeholderTextColor="#8993A4"
+          style={[s.input, kind === "password" && { paddingRight: 52 }]}
+          returnKeyType={kind === "password" ? "go" : "next"}
+          onSubmitEditing={
+            kind === "name"
+              ? () => inputs.current.email?.focus()
+              : kind === "email"
+                ? () => inputs.current.password?.focus()
+                : !p.busy
+                  ? submit
+                  : undefined
+          }
+        />
+        {kind === "password" && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={visible ? "Hide password" : "Show password"}
+            onPress={() => setVisible(!visible)}
+            style={s.eye}
+          >
+            <Icon
+              name={visible ? "eye-off-outline" : "eye-outline"}
+              size={21}
+              color="#596A85"
+            />
+          </Pressable>
+        )}
+      </View>
+      {!!errors[kind] && (
+        <Text accessibilityRole="alert" style={[s.error, { marginTop: 0 }]}>
+          {errors[kind]}
+        </Text>
       )}
     </View>
   );
@@ -169,7 +214,7 @@ export function AuthForm(p: Props) {
               }
               accessibilityState={{ disabled, busy: p.busy }}
               disabled={disabled}
-              onPress={p.onSubmit}
+              onPress={submit}
               style={({ pressed }) => [
                 s.submit,
                 { opacity: disabled ? 0.5 : pressed ? 0.8 : 1 },
@@ -200,6 +245,7 @@ export function AuthForm(p: Props) {
                 disabled={p.busy}
                 onPress={() => {
                   setVisible(false);
+                  setErrors({});
                   p.onSwitch();
                 }}
                 style={s.switch}

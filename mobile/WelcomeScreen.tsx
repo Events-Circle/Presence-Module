@@ -142,26 +142,6 @@ export function WelcomeScreen({
               Already a member? <Text style={styles.link}>Login</Text>
             </Text>
           </Pressable>
-          <Text style={styles.separator}>Or continue with</Text>
-          <View style={styles.socialRow}>
-            <View
-              accessibilityLabel="Facebook sign-up, coming soon"
-              style={styles.social}
-            >
-              <Icon name="logo-facebook" color="#1877F2" size={22} />
-              <Text style={styles.socialText}>Facebook</Text>
-            </View>
-            <View
-              accessibilityLabel="Google sign-up, coming soon"
-              style={styles.social}
-            >
-              <Icon name="logo-google" color="#4285F4" size={20} />
-              <Text style={styles.socialText}>Google</Text>
-            </View>
-          </View>
-          <Text style={styles.unavailable}>
-            Google & Facebook sign-up coming soon
-          </Text>
           {!!error && (
             <Text accessibilityRole="alert" style={styles.error}>
               {error}

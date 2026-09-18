@@ -1,3 +1,4 @@
+import { useFieldFocus } from "./EditorUX";
 import React, { useRef, useState } from "react";
 import {
   Modal,
@@ -30,6 +31,7 @@ export function SetupField({
   keyboard?: "default" | "email-address" | "phone-pad";
   maxLength?: number;
 }) {
+  const focus = useFieldFocus(error);
   const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 8 }}>
@@ -40,6 +42,9 @@ export function SetupField({
         </Text>
       </Text>
       <TextInput
+        ref={focus.ref}
+        returnKeyType="next"
+        onSubmitEditing={focus.onSubmitEditing}
         accessibilityLabel={label}
         accessibilityHint={error || (required ? "Required" : "Optional")}
         aria-required={required}
@@ -90,7 +95,7 @@ export function SearchSelect({
 }) {
   const [open, setOpen] = useState(false),
     [query, setQuery] = useState("");
-  const trigger = useRef<View>(null);
+  const { ref: trigger } = useFieldFocus<View>(error);
   const filtered = options.filter((o) =>
     o.label.toLowerCase().includes(query.trim().toLowerCase()),
   );

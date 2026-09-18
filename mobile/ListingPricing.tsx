@@ -139,17 +139,13 @@ export function ListingPricingFields({
             />
             <Field
               label="Price · e.g. 25.00"
+              error={priceError}
               required
               hint={`Enter the amount in ${currency}, not cents.`}
               value={amount}
               onChange={onAmount}
               keyboard="decimal-pad"
             />
-            {!!priceError && (
-              <Text accessibilityRole="alert" style={s.error}>
-                {priceError}
-              </Text>
-            )}
             <SearchSelect
               label="Price is for"
               value={unit}

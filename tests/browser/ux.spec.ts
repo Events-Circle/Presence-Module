@@ -275,6 +275,7 @@ test("profile publication, draft preview and share availability", async ({
   await expect(button(page, "Unpublish page")).toBeVisible();
   expect(state.profile.published).toBe(true);
   await tab(page, "Overview");
+  await tab(page, "Profile");
   await button(page, "Link & QR").click();
   await expect(
     page.getByText(/Public website sharing is not available yet/),
@@ -344,7 +345,7 @@ test("signup validates email and password before making a request", async ({
     .fill("qa@example.test");
   await button(page, "Create account").click();
   await expect(
-    page.getByText("Choose a password between 12 and 128 characters.", {
+    page.getByText("Use 12–128 characters.", {
       exact: true,
     }),
   ).toBeVisible();
@@ -445,6 +446,7 @@ test("successful public preview and share show supplied public data", async ({
     page.getByText("A thoughtful event studio.", { exact: true }),
   ).toBeVisible();
   await button(page, "Close").click();
+  await tab(page, "Profile");
   await button(page, "Link & QR").click();
   await expect(
     page.getByText("https://example.com/qa-studio", { exact: true }),
@@ -555,7 +557,9 @@ test("invalid profile address and media upload failure keep the editor usable", 
     .fill("bad address");
   await button(page, "Save profile").click();
   await expect(
-    page.getByText(/Choose a 3–80 character public page address/),
+    page.getByText("Use 3–80 letters, numbers or single hyphens.", {
+      exact: true,
+    }),
   ).toBeVisible();
   await page.route(api + "/api/v1/core/media", (route) =>
     route.fulfill({ status: 503, body: "{}" }),
@@ -1204,4 +1208,62 @@ test("legacy listing prices gain no assumed unit and public preview uses only pu
   await expect(
     page.getByText("Private-only note", { exact: true }),
   ).toHaveCount(0);
+});
+
+test("batch one keeps save visible and focuses field errors without losing edits", async ({
+  page,
+}, testInfo) => {
+  await fixture(page);
+  await expect(
+    page.getByText("Circle AI assistance · Coming later"),
+  ).toHaveCount(0);
+  await expect(button(page, "Review profile →")).toBeVisible();
+  await button(page, "Review profile →").click();
+  await expect(
+    page.getByText("Business profile", { exact: true }),
+  ).toBeVisible();
+  await button(page, "Edit introduction").click();
+  await expect(button(page, "Save profile")).toBeInViewport();
+  await page.getByLabel("Tagline", { exact: true }).fill("A retained draft");
+  await expect(
+    page.getByText("Unsaved changes", { exact: true }),
+  ).toBeVisible();
+  await button(page, "Close").click();
+  await button(page, "Discard changes").click();
+  await tab(page, "Listings");
+  await button(page, "+ Add").click();
+  await expect(button(page, "Save draft")).toBeInViewport();
+  await page
+    .getByLabel("Short summary", { exact: true })
+    .fill("Keep this summary");
+  await button(page, "Save draft").click();
+  await expect(page.getByLabel("Title", { exact: true })).toBeFocused();
+  await expect(page.getByText("Enter a title.", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Short summary", { exact: true })).toHaveValue(
+    "Keep this summary",
+  );
+  await page.screenshot({ path: testInfo.outputPath("batch-one-editor.png") });
+});
+
+test("auth keyboard next advances and invalid email receives focus", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText("Google", { exact: true })).toHaveCount(0);
+  await button(page, "Sign up with email").click();
+  const name = page.getByLabel("Your name", { exact: true });
+  const email = page.getByLabel("Email address", { exact: true });
+  const password = page.getByLabel("Password · 12–128 characters", {
+    exact: true,
+  });
+  await name.fill("Test");
+  await name.press("Enter");
+  await expect(email).toBeFocused();
+  await email.fill("invalid");
+  await email.press("Enter");
+  await expect(password).toBeFocused();
+  await password.fill("valid-long-password");
+  await password.press("Enter");
+  await expect(email).toBeFocused();
+  await expect(password).toHaveValue("valid-long-password");
 });

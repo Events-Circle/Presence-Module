@@ -96,21 +96,22 @@ test("account, full dashboard, versioned profile save, listing creation, and log
   await page.screenshot({ path: testInfo.outputPath("overview-top.png") });
   for (const label of [
     "Business identity",
-    "Public portfolio",
+    "Page preview",
     "Listings snapshot",
-    "Event posts",
-    "Hosted events",
-    "Reviews summary",
-    "Contact actions",
     "Gallery",
   ])
     await expect(page.getByText(label, { exact: true })).toBeAttached();
   await page.getByRole("button", { name: "Complete profile →" }).click();
   await page
+    .getByRole("button", { name: "Edit introduction", exact: true })
+    .click();
+  await page
     .getByLabel("Tagline", { exact: true })
     .fill("Beautiful celebrations, made personal.");
   await page.getByRole("button", { name: "Save profile", exact: true }).click();
-  await expect(page.getByText("My Presence", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Business profile", { exact: true }),
+  ).toBeVisible();
   expect(profile.tagline).toBe("Beautiful celebrations, made personal.");
   await page.getByRole("tab", { name: "Listings", exact: true }).click();
   await page.getByRole("button", { name: "+ Add", exact: true }).click();

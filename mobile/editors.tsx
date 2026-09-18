@@ -1,3 +1,4 @@
+import { SaveControl } from "./EditorUX";
 import { ListingPricingFields } from "./ListingPricing";
 import { profileSectionTitles, type ProfileSection } from "./ProfileSections";
 import { DateField } from "./DateField";
@@ -240,25 +241,11 @@ export function BusinessForm({
           {error}
         </Text>
       )}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Save business"
-        accessibilityState={{ disabled: busy }}
+      <SaveControl
+        label={busy ? "Saving…" : "Save business"}
         disabled={busy}
         onPress={() => void save()}
-        style={{ opacity: busy ? 0.6 : 1 }}
-      >
-        <LinearGradient
-          colors={["#7939EE", "#285BEB"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ padding: 18, borderRadius: 18, alignItems: "center" }}
-        >
-          <Text style={[s.buttonText, { color: "white" }]}>
-            {busy ? "Saving…" : "Save business"}
-          </Text>
-        </LinearGradient>
-      </Pressable>
+      />
     </View>
   );
 }
@@ -279,6 +266,7 @@ export function ProfileForm({
   const p = data.profile;
   const visible = (name: ProfileSection) =>
     section === "all" || section === name;
+  const [attempted, setAttempted] = useState(false);
   const [slug, setSlug] = useState(p?.slug || "");
   const [description, setDescription] = useState(p?.description || "");
   const [tagline, setTagline] = useState(p?.tagline || "");
@@ -306,6 +294,7 @@ export function ProfileForm({
     }
   }
   async function save() {
+    setAttempted(true);
     setBusy(true);
     setError("");
     try {
@@ -367,6 +356,14 @@ export function ProfileForm({
           <Field
             label="Public page address · e.g. ever-after-events"
             required
+            error={
+              attempted &&
+              (slug.trim().length < 3 ||
+                slug.trim().length > 80 ||
+                !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug.trim()))
+                ? "Use 3–80 letters, numbers or single hyphens."
+                : undefined
+            }
             maxLength={80}
             hint="This is your unique page name, not a full website URL. Use lowercase letters, numbers and hyphens."
             value={slug}
@@ -481,7 +478,7 @@ export function ProfileForm({
           {error}
         </Text>
       )}
-      <Button
+      <SaveControl
         label={busy ? "Saving profile…" : "Save profile"}
         disabled={busy}
         onPress={() => void save()}
@@ -533,6 +530,7 @@ export function ContentForm({
   useEffect(() => {
     void loadCategories();
   }, []);
+  const [attempted, setAttempted] = useState(false);
   const [title, setTitle] = useState(item?.title || "");
   const [summary, setSummary] = useState(item?.summary || "");
   const [description, setDescription] = useState(item?.description || "");
@@ -599,6 +597,7 @@ export function ContentForm({
     }
   }
   async function save() {
+    setAttempted(true);
     setBusy(true);
     setError("");
     try {
@@ -744,6 +743,7 @@ export function ContentForm({
       )}
       <Field
         label="Title"
+        error={attempted && !title.trim() ? "Enter a title." : undefined}
         required
         maxLength={160}
         placeholder={
@@ -849,6 +849,11 @@ export function ContentForm({
           <Photo id={m.mediaId} org={org} />
           <Field
             label="Image description for accessibility"
+            error={
+              attempted && !m.altText.trim()
+                ? "Describe what this image shows."
+                : undefined
+            }
             required
             maxLength={300}
             placeholder="e.g. White roses around an outdoor wedding arch"
@@ -910,7 +915,7 @@ export function ContentForm({
           {error}
         </Text>
       )}
-      <Button
+      <SaveControl
         label={
           busy
             ? "Saving…"
