@@ -45,6 +45,7 @@ import {
 } from "./mobile/service";
 import { BusinessForm, ContentForm, ProfileForm } from "./mobile/editors";
 import { WelcomeScreen } from "./mobile/WelcomeScreen";
+import { AuthForm } from "./mobile/AuthForm";
 type Tab = "Overview" | "Portfolio" | "Listings" | "Profile";
 type Editor =
   | { kind: "profile" | "business" | "preview" | "share" }
@@ -1132,102 +1133,23 @@ function AuthScreen({
       />
     );
   return (
-    <KeyboardAvoidingView
-      style={s.root}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={[s.page, { paddingTop: 20 }]}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to welcome"
-          onPress={() => setWelcome(true)}
-          disabled={busy}
-          style={{
-            paddingVertical: 12,
-            flexDirection: "row",
-            gap: 8,
-            alignItems: "center",
-          }}
-        >
-          <Icon name="arrow-back" />
-          <Text style={s.body}>Back</Text>
-        </Pressable>
-        <LinearGradient
-          colors={["#1F50E9", "#378DFC", "#67CDD4"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ padding: 28, borderRadius: 25, gap: 25 }}
-        >
-          <Icon name="ellipse-outline" color="#fff" size={35} />
-          <Text
-            style={{
-              fontSize: 34,
-              lineHeight: 39,
-              fontWeight: "800",
-              color: "#fff",
-            }}
-          >
-            Your work.{"\n"}Your presence.
-          </Text>
-          <Text style={{ color: "#E8F2FF", lineHeight: 21 }}>
-            Your business, portfolio and next opportunity. Together on Events
-            Circle.
-          </Text>
-        </LinearGradient>
-        <Text style={s.h1}>
-          {register ? "Create your account" : "Welcome back"}
-        </Text>
-        <Text style={s.body}>
-          {register
-            ? "One account for the Events Circle ecosystem."
-            : "Sign in to manage your business presence."}
-        </Text>
-        {register && (
-          <Field label="Your name" value={name} onChange={setName} />
-        )}
-        <Field
-          label="Email address"
-          value={email}
-          onChange={setEmail}
-          keyboard="email-address"
-        />
-        <Field
-          label={register ? "Password · 12–128 characters" : "Password"}
-          value={password}
-          onChange={setPassword}
-          secret
-        />
-        {!!error && (
-          <Text accessibilityRole="alert" style={s.error}>
-            {error}
-          </Text>
-        )}
-        <Button
-          label={busy ? "Connecting…" : register ? "Create account" : "Sign in"}
-          disabled={busy || !email || !password || (register && !name)}
-          onPress={() => void submit()}
-        />
-        <Button
-          label={
-            register
-              ? "Already have an account? Sign in"
-              : "New here? Create an account"
-          }
-          secondary
-          disabled={busy}
-          onPress={() => {
-            setRegister(!register);
-            setError("");
-          }}
-        />
-        <Text style={[s.body, { fontSize: 12, textAlign: "center" }]}>
-          Events Circle · Staging preview
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    <AuthForm
+      register={register}
+      busy={busy}
+      error={error}
+      name={name}
+      email={email}
+      password={password}
+      setName={setName}
+      setEmail={setEmail}
+      setPassword={setPassword}
+      onBack={() => setWelcome(true)}
+      onSwitch={() => {
+        setRegister(!register);
+        setError("");
+      }}
+      onSubmit={() => void submit()}
+    />
   );
 }
 export default function App() {
