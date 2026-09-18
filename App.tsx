@@ -44,6 +44,7 @@ import {
   type Models,
 } from "./mobile/service";
 import { BusinessForm, ContentForm, ProfileForm } from "./mobile/editors";
+import { WelcomeScreen } from "./mobile/WelcomeScreen";
 type Tab = "Overview" | "Portfolio" | "Listings" | "Profile";
 type Editor =
   | { kind: "profile" | "business" | "preview" | "share" }
@@ -1091,6 +1092,7 @@ function AuthScreen({
   onSigned: () => Promise<void>;
   initialError: string;
 }) {
+  const [welcome, setWelcome] = useState(true);
   const [register, setRegister] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -1115,15 +1117,44 @@ function AuthScreen({
       setBusy(false);
     }
   }
+  if (welcome)
+    return (
+      <WelcomeScreen
+        error={error}
+        onEmail={() => {
+          setRegister(true);
+          setWelcome(false);
+        }}
+        onLogin={() => {
+          setRegister(false);
+          setWelcome(false);
+        }}
+      />
+    );
   return (
     <KeyboardAvoidingView
       style={s.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerStyle={[s.page, { paddingTop: 45 }]}
+        contentContainerStyle={[s.page, { paddingTop: 20 }]}
         keyboardShouldPersistTaps="handled"
       >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to welcome"
+          onPress={() => setWelcome(true)}
+          disabled={busy}
+          style={{
+            paddingVertical: 12,
+            flexDirection: "row",
+            gap: 8,
+            alignItems: "center",
+          }}
+        >
+          <Icon name="arrow-back" />
+          <Text style={s.body}>Back</Text>
+        </Pressable>
         <LinearGradient
           colors={["#1F50E9", "#378DFC", "#67CDD4"]}
           start={{ x: 0, y: 0 }}

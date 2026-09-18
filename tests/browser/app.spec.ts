@@ -84,6 +84,7 @@ test("account, full dashboard, versioned profile save, listing creation, and log
     });
   });
   await page.goto("/");
+  await page.getByRole("button", { name: "Login", exact: true }).click();
   await expect(page.getByText("Welcome back", { exact: true })).toBeVisible();
   await page
     .getByLabel("Email address", { exact: true })
@@ -125,9 +126,13 @@ test("account, full dashboard, versioned profile save, listing creation, and log
     page.getByRole("button", { name: "Publish page", exact: true }),
   ).toBeDisabled();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  await expect(page.getByText("Welcome back", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign up with email", exact: true }),
+  ).toBeVisible();
   await page.reload();
-  await expect(page.getByText("Welcome back", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign up with email", exact: true }),
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 test("failed login stays actionable", async ({ page }) => {
@@ -135,6 +140,7 @@ test("failed login stays actionable", async ({ page }) => {
     route.fulfill({ status: 401, contentType: "application/json", body: "{}" }),
   );
   await page.goto("/");
+  await page.getByRole("button", { name: "Login", exact: true }).click();
   await page
     .getByLabel("Email address", { exact: true })
     .fill("wrong@example.test");
@@ -195,7 +201,7 @@ test("new supplier registration reaches a real empty dashboard", async ({
   });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "New here? Create an account" })
+    .getByRole("button", { name: "Sign up with email", exact: true })
     .click();
   await page.getByLabel("Your name", { exact: true }).fill("Test Owner");
   await page
