@@ -3,6 +3,7 @@ import {
   AccessibilityInfo,
   Animated,
   Easing,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,123 +11,9 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import Svg, {
-  Defs,
-  LinearGradient,
-  Stop,
-  Path,
-  Circle,
-} from "react-native-svg";
+import Svg, { Path, Circle } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
 import { Icon } from "./ui";
-
-const slides = [
-  {
-    title: "Events Circle\nPresence.",
-    description: "Your work deserves to be seen.",
-  },
-  {
-    title: "Your work.\nIn the spotlight.",
-    description: "A home for your business and portfolio.",
-  },
-  {
-    title: "Be seen.\nStay connected.",
-    description: "Turn your presence into possibility.",
-  },
-];
-
-function Artwork({ ribbon = false }: { ribbon?: boolean }) {
-  return (
-    <Svg
-      width="100%"
-      height="100%"
-      viewBox={ribbon ? "0 0 400 230" : "0 0 400 300"}
-      preserveAspectRatio="xMidYMid slice"
-      accessible={false}
-    >
-      <Defs>
-        <LinearGradient id="blue" x1="0%" y1="0%" x2="95%" y2="100%">
-          <Stop offset="0" stopColor="#102D94" />
-          <Stop offset=".36" stopColor="#426AE5" />
-          <Stop offset=".7" stopColor="#8CE5F8" />
-          <Stop offset="1" stopColor="#E3FAFF" />
-        </LinearGradient>
-        <LinearGradient id="cyan" x1="0%" y1="0%" x2="100%" y2="90%">
-          <Stop offset="0" stopColor="#B3F9FF" />
-          <Stop offset=".45" stopColor="#62D3EF" />
-          <Stop offset="1" stopColor="#5D7BDD" />
-        </LinearGradient>
-        <LinearGradient id="ribbon" x1="0%" y1="30%" x2="100%" y2="70%">
-          <Stop offset="0" stopColor="#3C54BB" />
-          <Stop offset=".5" stopColor="#6385E8" />
-          <Stop offset="1" stopColor="#A5C6FF" />
-        </LinearGradient>
-      </Defs>
-      {ribbon ? (
-        <>
-          <Path
-            d="M40 175 C105 212 173 101 242 139 S340 207 430 215 L430 54 C277 71 164 233 40 175"
-            fill="#536C7A"
-            opacity=".12"
-            transform="translate(0 13)"
-          />
-          <Path
-            d="M43 162 C17 130 49 81 115 102 C155 114 178 130 204 123 C127 166 70 197 43 162"
-            fill="url(#cyan)"
-            stroke="#64C5DE"
-            strokeWidth="1.5"
-          />
-          <Path
-            d="M40 160 C105 198 215 48 407 0 L420 202 C291 174 233 100 182 128 C121 161 70 194 40 160"
-            fill="url(#ribbon)"
-          />
-          <Path
-            d="M40 160 C105 198 215 48 407 0"
-            fill="none"
-            stroke="#4966D1"
-            strokeWidth="5"
-          />
-          <Path
-            d="M45 160 C112 191 217 48 407 4"
-            fill="none"
-            stroke="#A8C4FF"
-            strokeWidth="1.7"
-          />
-        </>
-      ) : (
-        <>
-          <Path
-            d="M-30 -60 L450 -60 L440 80 C338 163 244 282 141 257 C58 238 2 151 -30 52 Z"
-            fill="#536C7A"
-            opacity=".14"
-            transform="translate(0 15)"
-          />
-          <Path
-            d="M-30 -60 L450 -60 L440 70 C338 150 244 271 141 247 C58 228 2 141 -30 42 Z"
-            fill="url(#blue)"
-          />
-          <Path
-            d="M24 -45 C35 60 65 152 145 163 C233 174 326 51 390 -30"
-            fill="url(#cyan)"
-            stroke="#AFF2FF"
-            strokeWidth="1"
-          />
-          <Path
-            d="M65 -44 C90 41 132 90 187 76 C245 60 271 3 284 -40"
-            fill="url(#blue)"
-            stroke="#B5EFFF"
-            strokeWidth="1"
-          />
-          <Path
-            d="M5 25 C33 129 74 219 145 233 C229 254 339 130 402 89"
-            fill="none"
-            stroke="#C1E7FF"
-            strokeOpacity=".35"
-          />
-        </>
-      )}
-    </Svg>
-  );
-}
 
 export function WelcomeScreen({
   onEmail,
@@ -137,7 +24,6 @@ export function WelcomeScreen({
   onLogin: () => void;
   error: string;
 }) {
-  const [slide, setSlide] = useState(0);
   const { height, width } = useWindowDimensions();
   const titleSize = Math.min(34, (Math.min(width, 480) - 80) / 9);
   const entrance = useRef(new Animated.Value(1)).current;
@@ -174,8 +60,7 @@ export function WelcomeScreen({
     });
     animation.start();
     return () => animation.stop();
-  }, [slide, reduceMotion, entrance]);
-  const current = slides[slide] ?? slides[0]!;
+  }, [reduceMotion, entrance]);
   return (
     <ScrollView
       style={styles.root}
@@ -184,7 +69,16 @@ export function WelcomeScreen({
     >
       <View style={[styles.canvas, { minHeight: Math.max(700, height - 60) }]}>
         <View pointerEvents="none" style={styles.topArt}>
-          <Artwork />
+          <Image
+            source={require("../assets/welcome-blue-folds.png")}
+            resizeMode="cover"
+            style={{ width: "100%", height: "100%" }}
+            accessible={false}
+          />
+          <LinearGradient
+            colors={["#D6E7EE00", "#D6E7EE"]}
+            style={styles.artFade}
+          />
         </View>
         <View style={styles.brand}>
           <Svg width={38} height={38} viewBox="0 0 40 40" accessible={false}>
@@ -220,51 +114,15 @@ export function WelcomeScreen({
                 { fontSize: titleSize, lineHeight: titleSize + 4 },
               ]}
             >
-              {current.title}
+              {"Events Circle\nPresence."}
             </Text>
-            <Text style={styles.description}>{current.description}</Text>
+            <Text style={styles.description}>
+              Your work deserves to be seen.
+            </Text>
           </Animated.View>
         </View>
-        <View pointerEvents="none" style={styles.ribbon}>
-          <Artwork ribbon />
-        </View>
         <View style={styles.actions}>
-          <View style={styles.dots}>
-            {slides.map((item, index) => (
-              <Pressable
-                key={index}
-                accessibilityRole="button"
-                accessibilityLabel={`Introduction ${index + 1}: ${item.description}`}
-                accessibilityState={{ selected: slide === index }}
-                onPress={() => setSlide(index)}
-                style={styles.dotTarget}
-              >
-                <View
-                  style={[styles.dot, slide === index && styles.activeDot]}
-                />
-              </Pressable>
-            ))}
-          </View>
           <Text style={styles.prompt}>Don’t have an account?</Text>
-          <View style={styles.socialRow}>
-            <View
-              accessibilityLabel="Facebook sign-up, coming soon"
-              style={styles.social}
-            >
-              <Icon name="logo-facebook" color="#1877F2" size={22} />
-              <Text style={styles.socialText}>Facebook</Text>
-            </View>
-            <View
-              accessibilityLabel="Google sign-up, coming soon"
-              style={styles.social}
-            >
-              <Icon name="logo-google" color="#4285F4" size={20} />
-              <Text style={styles.socialText}>Google</Text>
-            </View>
-          </View>
-          <Text style={styles.unavailable}>
-            Google & Facebook sign-up coming soon
-          </Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Sign up with email"
@@ -284,6 +142,26 @@ export function WelcomeScreen({
               Already a member? <Text style={styles.link}>Login</Text>
             </Text>
           </Pressable>
+          <Text style={styles.separator}>Or continue with</Text>
+          <View style={styles.socialRow}>
+            <View
+              accessibilityLabel="Facebook sign-up, coming soon"
+              style={styles.social}
+            >
+              <Icon name="logo-facebook" color="#1877F2" size={22} />
+              <Text style={styles.socialText}>Facebook</Text>
+            </View>
+            <View
+              accessibilityLabel="Google sign-up, coming soon"
+              style={styles.social}
+            >
+              <Icon name="logo-google" color="#4285F4" size={20} />
+              <Text style={styles.socialText}>Google</Text>
+            </View>
+          </View>
+          <Text style={styles.unavailable}>
+            Google & Facebook sign-up coming soon
+          </Text>
           {!!error && (
             <Text accessibilityRole="alert" style={styles.error}>
               {error}
@@ -304,14 +182,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#D6E7EE",
   },
   topArt: {
+    overflow: "hidden",
     position: "absolute",
-    top: -48,
-    left: -15,
-    right: -15,
-    height: 320,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 300,
+  },
+  artFade: { position: "absolute", bottom: 0, left: 0, right: 0, height: 90 },
+  separator: {
+    textAlign: "center",
+    color: "#536674",
+    fontSize: 12,
+    marginBottom: 16,
   },
   brand: {
-    marginTop: 255,
+    marginTop: 310,
     paddingHorizontal: 40,
     zIndex: 1,
     alignItems: "flex-start",
@@ -332,27 +218,12 @@ const styles = StyleSheet.create({
     maxWidth: 330,
     minHeight: 38,
   },
-  ribbon: { height: 130, marginTop: 16, marginRight: -50 },
   actions: {
     marginTop: "auto",
     paddingHorizontal: 24,
-    paddingTop: 0,
+    paddingTop: 32,
     paddingBottom: 12,
     zIndex: 2,
-  },
-  dots: { flexDirection: "row", justifyContent: "center", marginBottom: 12 },
-  dotTarget: {
-    width: 32,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#A7BCE3" },
-  activeDot: {
-    backgroundColor: "#557BE5",
-    width: 9,
-    height: 9,
-    borderRadius: 5,
   },
   prompt: {
     fontSize: 13,
