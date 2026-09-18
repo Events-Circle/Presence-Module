@@ -1,3 +1,4 @@
+import { ListingPricingFields } from "./ListingPricing";
 import { profileSectionTitles, type ProfileSection } from "./ProfileSections";
 import { DateField } from "./DateField";
 import React, { useState, useEffect, useRef } from "react";
@@ -15,7 +16,7 @@ import {
 import {
   amountToMinor,
   displayAmount,
-  listingCurrencies,
+  normalizeInclusions,
 } from "../src/formatting";
 import { LinearGradient } from "expo-linear-gradient";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
@@ -545,6 +546,13 @@ export function ContentForm({
     displayAmount(item?.amountMinor, item?.currency),
   );
   const [currency, setCurrency] = useState(item?.currency || "USD");
+  const [priceUnit, setPriceUnit] = useState(item?.priceUnit || "");
+  const [inclusions, setInclusions] = useState<string[]>(
+    item?.inclusions || [],
+  );
+  const [pricingNote, setPricingNote] = useState(item?.pricingNote || "");
+  const [priceError, setPriceError] = useState("");
+  const [inclusionsError, setInclusionsError] = useState("");
   const [until, setUntil] = useState(item?.validUntil?.slice(0, 10) || "");
   const [media, setMedia] = useState<Models["MediaReferenceDto"][]>(
     item?.media || [],
@@ -561,6 +569,9 @@ export function ContentForm({
       pricing,
       amount,
       currency,
+      priceUnit,
+      inclusions,
+      pricingNote,
       until,
       media,
     },
@@ -606,12 +617,29 @@ export function ContentForm({
           400,
           "Give each image a description between 1 and 300 characters.",
         );
+      setPriceError("");
+      setInclusionsError("");
+      let cleanedInclusions: string[] = [];
+      if (collection === "listings") {
+        try {
+          cleanedInclusions = normalizeInclusions(inclusions);
+        } catch (e) {
+          setInclusionsError((e as Error).message);
+          throw new HttpError(400, "Check what’s included before saving.");
+        }
+        if (pricingNote.length > 500)
+          throw new HttpError(
+            400,
+            "Keep pricing details within 500 characters.",
+          );
+      }
       let amountMinor: number | null = null;
       if (collection === "listings" && ["FIXED", "FROM"].includes(pricing)) {
         try {
           amountMinor = amountToMinor(amount, currency.trim().toUpperCase());
         } catch (e) {
-          throw new HttpError(400, (e as Error).message);
+          setPriceError((e as Error).message);
+          throw new HttpError(400, "Check your price before saving.");
         }
       }
       if (
@@ -639,6 +667,11 @@ export function ContentForm({
           ? {
               type,
               pricingMode: pricing,
+              priceUnit: ["FIXED", "FROM"].includes(pricing)
+                ? priceUnit || null
+                : null,
+              inclusions: cleanedInclusions,
+              pricingNote: pricingNote.trim(),
               amountMinor,
               currency: ["FIXED", "FROM"].includes(pricing)
                 ? currency.trim().toUpperCase()
@@ -688,6 +721,27 @@ export function ContentForm({
           ? "This item is public. Saved changes appear immediately."
           : "Start with a title and save a private draft. You can add the remaining details before publishing."}
       </Text>
+      {collection === "listings" && (
+        <>
+          <Text style={s.h2}>What are you offering?</Text>
+          <Text style={s.body}>
+            Product: an item. Service: work you provide. Package: a bundle.
+            Offer: a promotion.
+          </Text>
+          <Text style={s.label}>Listing type</Text>
+          <View style={s.grid}>
+            {(["PRODUCT", "SERVICE", "PACKAGE", "OFFER"] as const).map((t) => (
+              <Button
+                key={t}
+                label={t.charAt(0) + t.slice(1).toLowerCase()}
+                secondary={type !== t}
+                selected={type === t}
+                onPress={() => setType(t)}
+              />
+            ))}
+          </View>
+        </>
+      )}
       <Field
         label="Title"
         required
@@ -697,7 +751,9 @@ export function ContentForm({
             ? "e.g. A garden wedding in Beirut"
             : collection === "gallery"
               ? "e.g. Summer celebrations"
-              : "e.g. Full wedding planning"
+              : type === "PACKAGE"
+                ? "e.g. Wedding photography package"
+                : "e.g. Full wedding planning"
         }
         value={title}
         onChange={setTitle}
@@ -741,7 +797,9 @@ export function ContentForm({
         hint={
           collection === "gallery"
             ? "Optional. Give this set of images some context."
-            : "Describe what is included, who it is for and any important details. Required before publishing."
+            : collection === "listings"
+              ? "Describe your service and who it is for. Add individual inclusions below. Required before publishing."
+              : "Describe the project and any important details. Required before publishing."
         }
         value={description}
         onChange={setDescription}
@@ -749,67 +807,31 @@ export function ContentForm({
       />
       {collection === "listings" && (
         <>
-          <Text style={s.h2}>What are you offering?</Text>
-          <Text style={s.body}>
-            Product: an item. Service: work you provide. Package: a bundle.
-            Offer: a promotion.
-          </Text>
-          <Text style={s.label}>Listing type</Text>
-          <View style={s.grid}>
-            {(["PRODUCT", "SERVICE", "PACKAGE", "OFFER"] as const).map((t) => (
-              <Button
-                key={t}
-                label={t.charAt(0) + t.slice(1).toLowerCase()}
-                secondary={type !== t}
-                selected={type === t}
-                onPress={() => setType(t)}
-              />
-            ))}
-          </View>
-          <Text style={s.label}>Pricing</Text>
-          <Text style={s.body}>
-            On request: clients ask for a quote. Starting from: a minimum price.
-            Fixed price: one set amount. Free: no charge.
-          </Text>
-          <View style={s.grid}>
-            {(["ON_REQUEST", "FREE", "FROM", "FIXED"] as const).map((t) => (
-              <Button
-                key={t}
-                label={
-                  {
-                    ON_REQUEST: "On request",
-                    FREE: "Free",
-                    FROM: "Starting from",
-                    FIXED: "Fixed price",
-                  }[t]
-                }
-                secondary={pricing !== t}
-                selected={pricing === t}
-                onPress={() => setPricing(t)}
-              />
-            ))}
-          </View>
-          {["FIXED", "FROM"].includes(pricing) && (
-            <>
-              <Field
-                label="Price · e.g. 25.00"
-                required
-                hint={`Enter the amount in ${currency}, not cents.`}
-                value={amount}
-                onChange={setAmount}
-                keyboard="decimal-pad"
-              />
-              <SearchSelect
-                label="Currency"
-                value={currency}
-                options={listingCurrencies.map((code) => ({
-                  value: code,
-                  label: code,
-                }))}
-                onSelect={setCurrency}
-              />
-            </>
-          )}
+          <ListingPricingFields
+            pricing={pricing}
+            onPricing={setPricing}
+            amount={amount}
+            onAmount={(v) => {
+              setAmount(v);
+              setPriceError("");
+            }}
+            currency={currency}
+            onCurrency={(v) => {
+              setCurrency(v);
+              setPriceError("");
+            }}
+            unit={priceUnit}
+            onUnit={setPriceUnit}
+            inclusions={inclusions}
+            onInclusions={(v) => {
+              setInclusions(v);
+              setInclusionsError("");
+            }}
+            note={pricingNote}
+            onNote={setPricingNote}
+            priceError={priceError}
+            inclusionsError={inclusionsError}
+          />
           {type === "OFFER" && <DateField value={until} onChange={setUntil} />}
         </>
       )}

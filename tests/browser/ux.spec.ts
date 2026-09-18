@@ -160,9 +160,10 @@ async function fixture(
         status = 201;
       } else if (id) {
         const item = items.find((x) => x.id === id);
-        if (method === "PUT")
-          Object.assign(item, body, { version: item.version + 1 });
-        else if (method === "DELETE") item.status = "ARCHIVED";
+        if (method === "PUT") {
+          if (options.conflict) status = 409;
+          else Object.assign(item, body, { version: item.version + 1 });
+        } else if (method === "DELETE") item.status = "ARCHIVED";
         else if (action)
           item.status = action === "publish" ? "PUBLISHED" : "DRAFT";
         data = item;
@@ -207,7 +208,7 @@ test("listing price, editing, publish, archive cancellation and restore", async 
   ).toBeVisible();
   expect(state.items.listings![0].amountMinor).toBe(2550);
   expect(state.items.listings![0].categoryId).toBe("category-events");
-  await expect(page.getByText(/From \$25.50/)).toBeVisible();
+  await expect(page.getByText(/From USD 25.50/)).toBeVisible();
   await button(page, "Edit").click();
   await expect(page.getByLabel("Price · e.g. 25.00")).toHaveValue("25.50");
   await button(page, "Close").click();
@@ -1005,4 +1006,202 @@ test("category schema loading retries and conflicting saves preserve entered det
     "Floral installations",
   );
   expect(state.profile.categoryDetails.values).toEqual({});
+});
+
+test("package pricing and inclusions save, reopen and appear in customer preview", async ({
+  page,
+}, testInfo) => {
+  const state = await fixture(page, { published: true });
+  await tab(page, "Listings");
+  await button(page, "Package").click();
+  await button(page, "+ Add").click();
+  await page
+    .getByLabel("Title", { exact: true })
+    .fill("Wedding dinner package");
+  await page
+    .getByLabel("Description", { exact: true })
+    .fill("A seasonal menu prepared and served at your venue.");
+  await button(page, "Starting from").click();
+  await page.getByLabel("Price · e.g. 25.00").fill("45.50");
+  await button(page, "Price is for").click();
+  await button(page, "Per person").click();
+  await page
+    .getByLabel("Pricing details", { exact: true })
+    .fill("Minimum 40 guests. Travel quoted separately.");
+  await button(page, "Add inclusion").click();
+  await page
+    .getByLabel("Inclusion 1", { exact: true })
+    .fill("  Three-course meal  ");
+  await button(page, "Add inclusion").click();
+  await page.getByLabel("Inclusion 2", { exact: true }).fill("Welcome drinks");
+  await page
+    .getByText("Customer price preview · Unsaved", { exact: true })
+    .scrollIntoViewIfNeeded();
+  await expect(
+    page.getByText("From USD 45.50 per person", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("package-price-preview.png"),
+  });
+  await button(page, "Save draft").click();
+  await expect(button(page, "Edit")).toBeVisible();
+  expect(state.items.listings[0]).toMatchObject({
+    type: "PACKAGE",
+    pricingMode: "FROM",
+    amountMinor: 4550,
+    priceUnit: "PERSON",
+    inclusions: ["Three-course meal", "Welcome drinks"],
+    pricingNote: "Minimum 40 guests. Travel quoted separately.",
+  });
+  await button(page, "Edit").click();
+  await expect(page.getByLabel("Inclusion 2", { exact: true })).toHaveValue(
+    "Welcome drinks",
+  );
+  await button(page, "Price is for").scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath("package-price-form.png"),
+  });
+  await button(page, "Close").click();
+  await button(page, "Publish").click();
+  await tab(page, "Profile");
+  await button(page, "Preview page").click();
+  await expect(
+    page.getByText("From USD 45.50 per person", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Three-course meal", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Minimum 40 guests. Travel quoted separately.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByText("Wedding dinner package", { exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("public-package.png") });
+});
+test("pricing validation and inclusion correction preserve drafts and free pricing clears units", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await tab(page, "Listings");
+  await button(page, "+ Add").click();
+  await page.getByLabel("Title", { exact: true }).fill("Photography session");
+  await button(page, "Fixed price").click();
+  await page.getByLabel("Price · e.g. 25.00").fill("21474836.48");
+  await button(page, "Price is for").click();
+  await button(page, "Per hour").click();
+  await button(page, "Save draft").click();
+  await expect(page.getByText(/This amount is too large/)).toBeVisible();
+  expect(state.items.listings).toHaveLength(0);
+  await page.getByLabel("Price · e.g. 25.00").fill("100");
+  await button(page, "Add inclusion").click();
+  await page.getByLabel("Inclusion 1", { exact: true }).fill("Edited photos");
+  await button(page, "Add inclusion").click();
+  await page.getByLabel("Inclusion 2", { exact: true }).fill(" edited PHOTOS ");
+  await button(page, "Save draft").click();
+  await expect(
+    page.getByText(/Each inclusion should be different/),
+  ).toBeVisible();
+  expect(state.items.listings).toHaveLength(0);
+  await button(page, "Remove inclusion 2").click();
+  await button(page, "Add inclusion").click();
+  await button(page, "Free").click();
+  await expect(button(page, "Price is for")).toHaveCount(0);
+  await button(page, "Save draft").click();
+  await expect(button(page, "Edit")).toBeVisible();
+  expect(state.items.listings[0]).toMatchObject({
+    pricingMode: "FREE",
+    amountMinor: null,
+    currency: null,
+    priceUnit: null,
+    inclusions: ["Edited photos"],
+  });
+  await button(page, "Edit").click();
+  await button(page, "Remove inclusion 1").click();
+  await button(page, "On request").click();
+  await button(page, "Save draft").click();
+  await expect(button(page, "Edit")).toBeVisible();
+  expect(state.items.listings[0].inclusions).toEqual([]);
+  await expect(
+    page.getByText("Price on request", { exact: true }),
+  ).toBeVisible();
+});
+test("listing conflict retains package edits and cancel confirms their removal", async ({
+  page,
+}) => {
+  const state = await fixture(page, { conflict: true });
+  await tab(page, "Listings");
+  await button(page, "+ Add").click();
+  await page.getByLabel("Title", { exact: true }).fill("Event package");
+  await button(page, "Save draft").click();
+  await button(page, "Edit").click();
+  await button(page, "Add inclusion").click();
+  await page.getByLabel("Inclusion 1", { exact: true }).fill("Lighting setup");
+  await button(page, "Save draft").click();
+  await expect(page.getByText(/This item changed/)).toBeVisible();
+  await expect(page.getByLabel("Inclusion 1", { exact: true })).toHaveValue(
+    "Lighting setup",
+  );
+  expect(state.items.listings[0].inclusions).toEqual([]);
+  await button(page, "Close").click();
+  await button(page, "Keep editing").click();
+  await expect(page.getByLabel("Inclusion 1", { exact: true })).toHaveValue(
+    "Lighting setup",
+  );
+  await button(page, "Close").click();
+  await button(page, "Discard changes").click();
+  await expect(button(page, "Edit")).toBeVisible();
+});
+test("legacy listing prices gain no assumed unit and public preview uses only public package fields", async ({
+  page,
+}) => {
+  const state = await fixture(page, { published: true });
+  state.items.listings.push({
+    id: "legacy",
+    title: "Legacy package",
+    description: "Description",
+    summary: "",
+    media: [],
+    type: "PACKAGE",
+    status: "PUBLISHED",
+    version: 1,
+    pricingMode: "FIXED",
+    amountMinor: 10000,
+    currency: "USD",
+    priceUnit: null,
+    inclusions: ["Private-only inclusion"],
+    pricingNote: "Private-only note",
+  });
+  await tab(page, "Profile");
+  await page.route(api + "/api/v1/presence/public/qa-studio", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ...state.profile,
+        supplier: {
+          businessName: "QA Studio",
+          category: "Events",
+          city: "Beirut",
+        },
+        listings: [
+          { ...state.items.listings[0], inclusions: [], pricingNote: "" },
+        ],
+        portfolio: [],
+        gallery: [],
+      }),
+    }),
+  );
+  await button(page, "Preview page").click();
+  await expect(page.getByText("USD 100.00", { exact: true })).toBeVisible();
+  await expect(page.getByText("What’s included", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByText("Private-only inclusion", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("Private-only note", { exact: true }),
+  ).toHaveCount(0);
 });

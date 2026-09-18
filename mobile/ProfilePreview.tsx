@@ -4,7 +4,7 @@ import { Linking, Text, View } from "react-native";
 import { Button, Card, C, Heading, Photo, s, Tag } from "./ui";
 import { active, type Snapshot } from "./data";
 import type { Models } from "./service";
-import { displayAmount } from "../src/formatting";
+import { ListingDetails } from "./ListingPricing";
 export function ProfilePreview({
   data,
   publicData,
@@ -94,16 +94,13 @@ export function ProfilePreview({
                 )}
                 {!!item.summary && <Text style={s.body}>{item.summary}</Text>}
                 {collection === "listings" && (
-                  <Text style={[s.label, { color: C.blue }]}>
-                    {item.pricingMode === "FREE"
-                      ? "Free"
-                      : (item.pricingMode === "FIXED" ||
-                            item.pricingMode === "FROM") &&
-                          item.amountMinor != null &&
-                          item.currency
-                        ? `${item.pricingMode === "FROM" ? "From " : ""}${item.currency} ${displayAmount(item.amountMinor, item.currency)}`
-                        : "Price on request"}
-                  </Text>
+                  <>
+                    {!!item.description &&
+                      item.description !== item.summary && (
+                        <Text style={s.body}>{item.description}</Text>
+                      )}
+                    <ListingDetails item={item} />
+                  </>
                 )}
                 {collection === "gallery" &&
                   item.media

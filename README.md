@@ -31,6 +31,7 @@ Create an account, set up a business, then complete the Presence profile. New ac
 - Optional category details for venues, photography/video, catering, entertainment and other event services. Forms use server-provided fields; saved answers appear in the public preview. Changing the details form replaces its saved answers without changing Core business identity.
 - Portfolio, gallery and listing create/edit, image selection/upload, image descriptions and cover selection.
 - Draft/publish/unpublish/archive/restore with version checks and role-sensitive controls.
+- Optional structured listing inclusions, explicit price units and pricing conditions, with a live unsaved customer preview.
 - All listing types, pricing modes, offer expiry. Price input uses normal currency amounts (for example, USD 25.00); the app converts to API minor units.
 - Saved-content preview; published preview uses the public aggregate (up to six per collection).
 - Public link/QR/share/copy when the backend has a configured public website and the profile is published.

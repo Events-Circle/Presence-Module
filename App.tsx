@@ -1,3 +1,4 @@
+import { ListingDetails } from "./mobile/ListingPricing";
 import {
   ProfileSections,
   profileSectionTitles,
@@ -63,16 +64,6 @@ type Editor =
       item?: Content;
       initialType?: NonNullable<Content["type"]>;
     };
-function formatPrice(amount: number, currency: string | null) {
-  if (!currency) return "Price on request";
-  try {
-    const format = new Intl.NumberFormat("en", { style: "currency", currency });
-    const digits = format.resolvedOptions().maximumFractionDigits ?? 2;
-    return format.format(amount / 10 ** digits);
-  } catch {
-    return "Price on request";
-  }
-}
 function AppBody() {
   const [ready, setReady] = useState(false);
   const [signed, setSigned] = useState(false);
@@ -451,15 +442,10 @@ function AppBody() {
             </View>
             {!!item.summary && <Text style={s.body}>{item.summary}</Text>}
             {collection === "listings" && (
-              <Text style={s.label}>
-                {item.type?.toLowerCase()} ·{" "}
-                {item.pricingMode === "FROM" ? "From " : ""}
-                {item.pricingMode === "FREE"
-                  ? "Free"
-                  : item.amountMinor !== null
-                    ? formatPrice(item.amountMinor, item.currency)
-                    : "Price on request"}
-              </Text>
+              <>
+                <Text style={s.label}>{item.type?.toLowerCase()}</Text>
+                <ListingDetails item={item} compact />
+              </>
             )}
             {edit && (
               <View style={s.grid}>
