@@ -3,6 +3,7 @@ import {
   profileSectionTitles,
   type ProfileSection,
 } from "./mobile/ProfileSections";
+import { CategoryDetailsForm } from "./mobile/CategoryDetails";
 import { ProfilePreview } from "./mobile/ProfilePreview";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -54,7 +55,7 @@ import { readinessLabel } from "./src/formatting";
 import { AuthForm } from "./mobile/AuthForm";
 type Tab = "Overview" | "Portfolio" | "Listings" | "Profile";
 type Editor =
-  | { kind: "business" | "preview" | "share" }
+  | { kind: "business" | "preview" | "share" | "details" }
   | { kind: "profile"; section?: ProfileSection }
   | {
       kind: "content";
@@ -964,6 +965,9 @@ function AppBody() {
                 canEdit={edit}
                 isOwner={role === "OWNER"}
                 onBusiness={() => setEditor({ kind: "business" })}
+                onDetails={() =>
+                  setEditor({ kind: data.profile ? "details" : "profile" })
+                }
                 onEdit={(section) => setEditor({ kind: "profile", section })}
               />
               <Card>
@@ -1113,20 +1117,22 @@ function AppBody() {
         >
           <View style={[s.row, { padding: 18 }]}>
             <Text style={[s.h2, { flex: 1 }]}>
-              {editor?.kind === "business"
-                ? "Business details"
-                : editor?.kind === "profile"
-                  ? profileSectionTitles[editor.section || "all"]
-                  : editor?.kind === "content"
-                    ? (editor.item ? "Edit " : "New ") +
-                      (editor.collection === "portfolio"
-                        ? "project"
-                        : editor.collection === "gallery"
-                          ? "gallery"
-                          : "listing")
-                    : editor?.kind === "share"
-                      ? "Share your page"
-                      : "Page preview"}
+              {editor?.kind === "details"
+                ? "Category details"
+                : editor?.kind === "business"
+                  ? "Business details"
+                  : editor?.kind === "profile"
+                    ? profileSectionTitles[editor.section || "all"]
+                    : editor?.kind === "content"
+                      ? (editor.item ? "Edit " : "New ") +
+                        (editor.collection === "portfolio"
+                          ? "project"
+                          : editor.collection === "gallery"
+                            ? "gallery"
+                            : "listing")
+                      : editor?.kind === "share"
+                        ? "Share your page"
+                        : "Page preview"}
             </Text>
             <Button
               label="Close"
@@ -1146,6 +1152,14 @@ function AppBody() {
               {data && editor?.kind === "profile" && (
                 <ProfileForm
                   section={editor.section}
+                  data={data}
+                  org={org}
+                  onSaved={saved}
+                  onState={setEditorState}
+                />
+              )}
+              {data && editor?.kind === "details" && (
+                <CategoryDetailsForm
                   data={data}
                   org={org}
                   onSaved={saved}

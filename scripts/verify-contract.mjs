@@ -14,6 +14,7 @@ for (const path of [
   "/api/v1/core/media",
   "/api/v1/core/suppliers",
   "/api/v1/presence/profile",
+  "/api/v1/presence/detail-types",
   "/api/v1/presence/collections/{collection}",
   "/api/v1/leads/public/{supplierId}",
 ])

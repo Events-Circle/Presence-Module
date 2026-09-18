@@ -1,4 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+const detailTypes = JSON.parse(
+  readFileSync(new URL("./detail-types.json", import.meta.url), "utf8"),
+);
 const api = "https://events-circle-api-production.up.railway.app";
 async function fixture(
   page: Page,
@@ -9,11 +13,17 @@ async function fixture(
     shareFail?: boolean;
     failLoad?: boolean;
     conflict?: boolean;
+    detailsFail?: boolean;
   } = {},
 ) {
   const state = {
     failLoad: !!options.failLoad,
+    detailsFail: !!options.detailsFail,
     profile: {
+      categoryDetails: {
+        type: "GENERAL",
+        values: {} as Record<string, unknown>,
+      },
       id: "p",
       supplierId: "s",
       slug: "qa-studio",
@@ -82,7 +92,10 @@ async function fixture(
           kind: "CATEGORY",
         },
       ];
-    else if (path.endsWith("/modules"))
+    else if (path.endsWith("/detail-types")) {
+      data = detailTypes;
+      if (state.detailsFail) status = 503;
+    } else if (path.endsWith("/modules"))
       data = [{ id: "presence", enabled: true, implemented: true }];
     else if (path.endsWith("/readiness"))
       data = { score: 100, ready: true, missing: [] };
@@ -886,4 +899,110 @@ test("customer preview presents saved services and prices with approved contact 
     .getByText("Celebrations with character", { exact: true })
     .scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("customer-preview.png") });
+});
+
+test("category details validate venue capacity, preserve explicit no and show public answers", async ({
+  page,
+}, testInfo) => {
+  const state = await fixture(page, { published: true });
+  await tab(page, "Profile");
+  await button(page, "Edit category details").click();
+  await button(page, "Details for your business").click();
+  await button(page, "Venue").click();
+  await page.getByLabel("Seated capacity", { exact: true }).fill("1.5");
+  await button(page, "Save category details").click();
+  await expect(
+    page.getByText("Enter a whole number from 1 to 100000.", { exact: true }),
+  ).toBeVisible();
+  expect(state.calls.filter((c) => c.method === "PUT")).toHaveLength(0);
+  await page.getByLabel("Seated capacity", { exact: true }).fill("120");
+  await button(page, "No").first().click();
+  await button(page, "Choose event space").click();
+  await button(page, "Outdoor").click();
+  await page.screenshot({ path: testInfo.outputPath("category-venue.png") });
+  await button(page, "Save category details").click();
+  await expect(button(page, "Edit category details")).toBeVisible();
+  expect(state.profile.categoryDetails).toEqual({
+    type: "VENUE",
+    values: { seatedCapacity: 120, spaceType: "Outdoor", parking: false },
+  });
+  await button(page, "Edit category details").click();
+  await expect(page.getByLabel("Seated capacity", { exact: true })).toHaveValue(
+    "120",
+  );
+  await expect(button(page, "No").first()).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await button(page, "Close").click();
+  await button(page, "Preview page").click();
+  await expect(page.getByText("120 guests", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("On-site parking", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Standing capacity", { exact: true }),
+  ).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("category-preview.png") });
+});
+test("category forms retain unsaved drafts while switching and replace saved values explicitly", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  state.profile.categoryDetails = {
+    type: "VENUE",
+    values: { seatedCapacity: 100 },
+  };
+  await tab(page, "Profile");
+  await button(page, "Edit category details").click();
+  await button(page, "Details for your business").click();
+  await button(page, "Catering").click();
+  await page.getByLabel("Minimum guest count", { exact: true }).fill("50");
+  await page.getByLabel("Maximum guest count", { exact: true }).fill("20");
+  await button(page, "Save category details").click();
+  await expect(
+    page.getByText(
+      "Maximum guest count must be at least the minimum guest count.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await button(page, "Details for your business").click();
+  await button(page, "Entertainment & DJs").click();
+  await expect(page.getByText(/Saving this form replaces/)).toBeVisible();
+  await page.getByLabel("Setup time needed", { exact: true }).fill("0");
+  await button(page, "No").click();
+  await button(page, "DJ").click();
+  await button(page, "Details for your business").click();
+  await button(page, "Catering").click();
+  await expect(
+    page.getByLabel("Minimum guest count", { exact: true }),
+  ).toHaveValue("50");
+  await button(page, "Details for your business").click();
+  await button(page, "Entertainment & DJs").click();
+  await button(page, "Save category details").click();
+  await expect(button(page, "Edit category details")).toBeVisible();
+  expect(state.profile.categoryDetails).toEqual({
+    type: "ENTERTAINMENT",
+    values: { acts: ["DJ"], setupMinutes: 0, equipmentIncluded: false },
+  });
+});
+test("category schema loading retries and conflicting saves preserve entered details", async ({
+  page,
+}) => {
+  const state = await fixture(page, { detailsFail: true, conflict: true });
+  await tab(page, "Profile");
+  await button(page, "Edit category details").click();
+  await expect(button(page, "Retry loading details")).toBeVisible();
+  state.detailsFail = false;
+  await button(page, "Retry loading details").click();
+  await page
+    .getByLabel("Specialties", { exact: true })
+    .fill("Floral installations");
+  await button(page, "Weddings").click();
+  await button(page, "Save category details").click();
+  await expect(page.getByText(/This item changed/)).toBeVisible();
+  await expect(page.getByLabel("Specialties", { exact: true })).toHaveValue(
+    "Floral installations",
+  );
+  expect(state.profile.categoryDetails.values).toEqual({});
 });

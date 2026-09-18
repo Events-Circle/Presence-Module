@@ -1,3 +1,4 @@
+import { CategoryDetailsPreview } from "./CategoryDetails";
 import React, { useState } from "react";
 import { Linking, Text, View } from "react-native";
 import { Button, Card, C, Heading, Photo, s, Tag } from "./ui";
@@ -61,6 +62,11 @@ export function ProfilePreview({
           <Text style={s.body}>{profile.description}</Text>
         </View>
       )}
+      <CategoryDetailsPreview
+        {...(profile?.categoryDetails
+          ? { details: profile.categoryDetails }
+          : {})}
+      />
       {(["listings", "portfolio", "gallery"] as const).map((collection) => {
         const items = publicData
           ? publicData[collection]

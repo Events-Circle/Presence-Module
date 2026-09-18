@@ -17,12 +17,14 @@ export function ProfileSections({
   isOwner,
   onEdit,
   onBusiness,
+  onDetails,
 }: {
   data: Snapshot;
   canEdit: boolean;
   isOwner: boolean;
   onEdit: (section: ProfileSection) => void;
   onBusiness: () => void;
+  onDetails: () => void;
 }) {
   const p = data.profile;
   const supplier = data.supplier;
@@ -72,6 +74,28 @@ export function ProfileSections({
   ];
   return (
     <View style={{ gap: 12 }}>
+      <Card>
+        <Text accessibilityRole="header" style={s.h2}>
+          Category details
+        </Text>
+        <Text style={s.body}>
+          Capacity, services and practical information that help clients choose
+          your business.
+        </Text>
+        <Text style={{ color: C.blue, fontSize: 12 }}>
+          {Object.keys(p?.categoryDetails?.values || {}).length} details added ·
+          Optional
+        </Text>
+        {canEdit && (
+          <Button
+            label={
+              p ? "Edit category details" : "Set up profile to add details"
+            }
+            secondary
+            onPress={onDetails}
+          />
+        )}
+      </Card>
       {sections.map((section) => (
         <Card key={section.key}>
           <View

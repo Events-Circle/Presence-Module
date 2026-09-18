@@ -1,10 +1,10 @@
 {
   "repository": "Events-Circle/Event-Circle-Main-Core",
-  "commit": "c5d62eb528d18630b6f734678cc27dcd3993eb45",
+  "commit": "04d51a9d911596dae23c91ffad36a1ea09e16d17",
   "sourceSpec": "backend/openapi.json",
   "sourceTypes": "packages/api-client/src/openapi.d.ts",
   "sha256": {
-    "contracts/core.openapi.json": "c6689ac2668b32f84097c0d538b553d8965dd31f6424bbf8e36a2eb522ec5c88",
-    "src/api/schema.d.ts": "8d51df3364d9fa99568fab13d2da9e410ff34237f2dc637af1eaeb2047f869b9"
+    "contracts/core.openapi.json": "5f6be8f1998c886a2614f99cc5b300fae0c8bab34b89dfb8b9fb1b0d0708fd68",
+    "src/api/schema.d.ts": "afc78bd1bdde0b7bac9bc5a8704a19fa226f88dc8fc65ebdad99dc7ddec085d7"
   }
 }
