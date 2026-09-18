@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,15 +21,15 @@ import { Icon } from "./ui";
 
 const slides = [
   {
-    title: "Events\nCircle\nPresence.",
+    title: "Events Circle\nPresence.",
     description: "Your work deserves to be seen.",
   },
   {
-    title: "Your work.\nBeautifully\npresented.",
+    title: "Your work.\nIn the spotlight.",
     description: "A home for your business and portfolio.",
   },
   {
-    title: "Be seen.\nMake new\nconnections.",
+    title: "Be seen.\nStay connected.",
     description: "Turn your presence into possibility.",
   },
 ];
@@ -135,7 +138,43 @@ export function WelcomeScreen({
   error: string;
 }) {
   const [slide, setSlide] = useState(0);
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
+  const titleSize = Math.min(34, (Math.min(width, 480) - 80) / 9);
+  const entrance = useRef(new Animated.Value(1)).current;
+  const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((value) => {
+        if (mounted) setReduceMotion(value);
+      })
+      .catch(() => {
+        if (mounted) setReduceMotion(true);
+      });
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setReduceMotion,
+    );
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+  useEffect(() => {
+    if (reduceMotion !== false) {
+      entrance.setValue(1);
+      return;
+    }
+    entrance.setValue(0);
+    const animation = Animated.timing(entrance, {
+      toValue: 1,
+      duration: 450,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [slide, reduceMotion, entrance]);
   const current = slides[slide] ?? slides[0]!;
   return (
     <ScrollView
@@ -157,10 +196,34 @@ export function WelcomeScreen({
             />
             <Circle cx="20" cy="20" r="10" fill="#111B29" />
           </Svg>
-          <Text accessibilityRole="header" style={styles.title}>
-            {current.title}
-          </Text>
-          <Text style={styles.description}>{current.description}</Text>
+          <Animated.View
+            style={{
+              alignSelf: "stretch",
+              opacity: entrance,
+              transform: [
+                {
+                  translateY: entrance.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [12, 0],
+                  }),
+                },
+              ],
+            }}
+          >
+            <Text
+              accessibilityRole="header"
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              style={[
+                styles.title,
+                { fontSize: titleSize, lineHeight: titleSize + 4 },
+              ]}
+            >
+              {current.title}
+            </Text>
+            <Text style={styles.description}>{current.description}</Text>
+          </Animated.View>
         </View>
         <View pointerEvents="none" style={styles.ribbon}>
           <Artwork ribbon />
@@ -248,7 +311,7 @@ const styles = StyleSheet.create({
     height: 320,
   },
   brand: {
-    marginTop: 278,
+    marginTop: 255,
     paddingHorizontal: 40,
     zIndex: 1,
     alignItems: "flex-start",
@@ -266,13 +329,14 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: "#3E5360",
     marginTop: 12,
-    maxWidth: 220,
+    maxWidth: 330,
+    minHeight: 38,
   },
-  ribbon: { position: "absolute", left: 0, right: -50, top: 360, height: 235 },
+  ribbon: { height: 130, marginTop: 16, marginRight: -50 },
   actions: {
     marginTop: "auto",
     paddingHorizontal: 24,
-    paddingTop: 42,
+    paddingTop: 0,
     paddingBottom: 12,
     zIndex: 2,
   },
