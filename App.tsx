@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -45,6 +44,7 @@ import {
 } from "./mobile/service";
 import { BusinessForm, ContentForm, ProfileForm } from "./mobile/editors";
 import { WelcomeScreen } from "./mobile/WelcomeScreen";
+import { readinessLabel } from "./src/formatting";
 import { AuthForm } from "./mobile/AuthForm";
 type Tab = "Overview" | "Portfolio" | "Listings" | "Profile";
 type Editor =
@@ -78,7 +78,34 @@ function AppBody() {
   >(null);
   const [modalError, setModalError] = useState("");
   const [filter, setFilter] = useState<string>("ALL");
+  const [notice, setNotice] = useState("");
+  const [editorState, setEditorState] = useState({ dirty: false, busy: false });
+  const [confirmation, setConfirmation] = useState<{
+    title: string;
+    message: string;
+    label: string;
+    accept: () => void;
+  } | null>(null);
   const generation = useRef(0);
+  function closeEditor() {
+    if (editorState.busy) return;
+    if (
+      editorState.dirty &&
+      editor &&
+      !["preview", "share"].includes(editor.kind)
+    ) {
+      setConfirmation({
+        title: "Discard unsaved changes?",
+        message: "Your edits have not been saved.",
+        label: "Discard changes",
+        accept: () => setEditor(null),
+      });
+    } else setEditor(null);
+  }
+  useEffect(() => {
+    setEditorState({ dirty: false, busy: false });
+  }, [editor]);
+
   const role = members.find((m) => m.organizationId === org)?.role;
   const edit = role === "OWNER" || role === "EDITOR";
   async function reset() {
@@ -91,6 +118,9 @@ function AppBody() {
     setShare(null);
     setPublicData(null);
     setError("");
+    setNotice("");
+    setConfirmation(null);
+    setLoading(false);
     setTab("Overview");
   }
   async function membership() {
@@ -150,6 +180,7 @@ function AppBody() {
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       await action();
     } catch (e) {
@@ -163,6 +194,7 @@ function AppBody() {
     }
   }
   async function saved() {
+    setNotice("Changes saved.");
     setEditor(null);
     await refresh();
   }
@@ -200,6 +232,7 @@ function AppBody() {
   async function showShare() {
     if (!data?.profile) return;
     setShare(null);
+    setNotice("");
     setModalError("");
     setEditor({ kind: "share" });
     try {
@@ -264,6 +297,7 @@ function AppBody() {
     setTab(value);
     setGallery(false);
     setFilter("ALL");
+    setNotice("");
   }
   function contentCards(collection: Collection) {
     const items = data?.content[collection] || [];
@@ -329,10 +363,23 @@ function AppBody() {
         {!list.length && (
           <Card>
             <Icon name="images-outline" size={32} />
-            <Text style={s.h2}>A fresh start</Text>
+            <Text style={s.h2}>
+              {filter === "ARCHIVED"
+                ? "No archived items"
+                : filter !== "ALL"
+                  ? "No matching listings"
+                  : "A fresh start"}
+            </Text>
             <Text style={s.body}>
-              Your {collection} will appear here. Add your first item when
-              you’re ready.
+              {filter === "ARCHIVED"
+                ? "Items you archive will appear here. You can restore them as drafts."
+                : !edit
+                  ? "An owner or editor can add content for this business."
+                  : !p
+                    ? "Set up your profile to start adding content."
+                    : filter !== "ALL"
+                      ? "Choose All to see your other listings, or add a listing of this type."
+                      : "Add your first item when you’re ready. It will be saved as a draft."}
             </Text>
           </Card>
         )}
@@ -348,12 +395,17 @@ function AppBody() {
             />
             <View style={s.row}>
               <Text style={[s.h2, { flex: 1 }]}>{item.title}</Text>
-              <Tag text={item.status.toLowerCase()} />
+              <Tag
+                text={
+                  "status" in item ? String(item.status).toLowerCase() : "draft"
+                }
+              />
             </View>
             {!!item.summary && <Text style={s.body}>{item.summary}</Text>}
             {collection === "listings" && (
               <Text style={s.label}>
-                {item.type} ·{" "}
+                {item.type?.toLowerCase()} ·{" "}
+                {item.pricingMode === "FROM" ? "From " : ""}
                 {item.pricingMode === "FREE"
                   ? "Free"
                   : item.amountMinor !== null
@@ -400,19 +452,14 @@ function AppBody() {
                     secondary
                     disabled={busy}
                     onPress={() =>
-                      Alert.alert(
-                        "Archive this item?",
-                        "It will be removed from the public page. You can restore it as a draft.",
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: "Archive",
-                            style: "destructive",
-                            onPress: () =>
-                              void lifecycle(collection, item, "archive"),
-                          },
-                        ],
-                      )
+                      setConfirmation({
+                        title: "Archive this item?",
+                        message:
+                          "It will be removed from the public page. You can restore it as a draft.",
+                        label: "Archive item",
+                        accept: () =>
+                          void lifecycle(collection, item, "archive"),
+                      })
                     }
                   />
                 )}
@@ -427,531 +474,579 @@ function AppBody() {
     <View style={s.root}>
       <StatusBar barStyle="dark-content" />
       <View
-        style={[
-          s.row,
-          {
-            paddingHorizontal: 22,
-            paddingVertical: 14,
-            backgroundColor: "#fff",
-            borderBottomWidth: 1,
-            borderColor: C.line,
-          },
-        ]}
+        style={{ flex: 1 }}
+        aria-hidden={!!editor || !!confirmation}
+        accessibilityElementsHidden={!!editor || !!confirmation}
+        importantForAccessibility={
+          editor || confirmation ? "no-hide-descendants" : "auto"
+        }
       >
-        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-          <LinearGradient
-            colors={["#235AFF", "#45BBE5"]}
+        <View
+          style={[
+            s.row,
+            {
+              paddingHorizontal: 22,
+              paddingVertical: 14,
+              backgroundColor: "#fff",
+              borderBottomWidth: 1,
+              borderColor: C.line,
+            },
+          ]}
+        >
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            <LinearGradient
+              colors={["#235AFF", "#45BBE5"]}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name="ellipse-outline" color="#fff" size={18} />
+            </LinearGradient>
+            <Text style={{ fontSize: 16, fontWeight: "800", color: C.ink }}>
+              Events Circle
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open profile and account"
+            onPress={() => switchTab("Profile")}
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: 10,
+              backgroundColor: "#EBF0FF",
+              width: 36,
+              height: 36,
+              borderRadius: 18,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Icon name="ellipse-outline" color="#fff" size={18} />
-          </LinearGradient>
-          <Text style={{ fontSize: 16, fontWeight: "800", color: C.ink }}>
-            Events Circle
-          </Text>
+            <Icon name="person-outline" size={18} />
+          </Pressable>
         </View>
-        <Pressable
-          accessibilityLabel="Open profile and account"
-          onPress={() => switchTab("Profile")}
-          style={{
-            backgroundColor: "#EBF0FF",
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+        <ScrollView
+          key={tab + String(gallery)}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={() => void refresh()}
+              tintColor={C.blue}
+            />
+          }
+          contentContainerStyle={s.page}
+          keyboardShouldPersistTaps="handled"
         >
-          <Icon name="person-outline" size={18} />
-        </Pressable>
-      </View>
-      <ScrollView
-        key={tab + String(gallery)}
-        refreshControl={
-          <RefreshControl
-            refreshing={loading}
-            onRefresh={() => void refresh()}
-            tintColor={C.blue}
-          />
-        }
-        contentContainerStyle={s.page}
-        keyboardShouldPersistTaps="handled"
-      >
-        {!!error && (
-          <>
-            <Text accessibilityRole="alert" style={s.error}>
-              {error}
+          {!!error && (
+            <>
+              <Text accessibilityRole="alert" style={s.error}>
+                {error}
+              </Text>
+              <Button label="Retry" secondary onPress={() => void refresh()} />
+            </>
+          )}
+          {!!notice && !editor && (
+            <Text accessibilityRole="alert" style={s.body}>
+              {notice}
             </Text>
-            <Button label="Retry" secondary onPress={() => void refresh()} />
-          </>
-        )}
-        {!data && !loading && (
-          <Card>
-            <Text style={s.body}>Your business could not be loaded.</Text>
-          </Card>
-        )}
-        {data && tab === "Overview" && (
-          <>
-            <View>
-              <Text style={s.h1}>My Presence</Text>
-              <Text style={[s.body, { marginTop: 6 }]}>
-                Showcase your business. Make your next connection.
-              </Text>
+          )}
+          {loading && (
+            <View style={s.row}>
+              <ActivityIndicator color={C.blue} />
+              <Text style={s.body}>Loading your business…</Text>
             </View>
-            <LinearGradient
-              colors={["#235AFF", "#427EF7", "#41A9D5"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ padding: 21, borderRadius: 22, gap: 17 }}
-            >
-              <View style={s.row}>
-                <View
-                  style={{
-                    width: 78,
-                    height: 78,
-                    borderRadius: 39,
-                    borderWidth: 6,
-                    borderColor: "#92DCEB",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text
-                    style={{ color: "#fff", fontSize: 24, fontWeight: "800" }}
-                  >
-                    {data.readiness?.score || 0}%
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}
-                  >
-                    Make it yours
-                  </Text>
-                  <Text
-                    style={{
-                      color: "#E7F0FF",
-                      fontSize: 13,
-                      lineHeight: 19,
-                      marginTop: 5,
-                    }}
-                  >
-                    {data.readiness?.ready
-                      ? "Your profile is ready to publish."
-                      : `Complete your profile to help clients discover you.`}
-                  </Text>
-                </View>
-              </View>
-              {edit && (
-                <Button
-                  label="Complete profile →"
-                  secondary
-                  onPress={() => setEditor({ kind: "profile" })}
-                />
-              )}
-              <Text style={{ color: "#EAF2FF", fontSize: 11 }}>
-                Circle AI assistance · Coming later
-              </Text>
-            </LinearGradient>
-            <Heading
-              title="Business identity"
-              {...(role === "OWNER"
-                ? {
-                    action: "Edit",
-                    onPress: () => setEditor({ kind: "business" }),
-                  }
-                : {})}
-            />
+          )}
+          {!data && !loading && (
             <Card>
-              <Photo id={p?.coverMediaId} org={org} height={132} />
-              <View
-                style={{ flexDirection: "row", gap: 14, alignItems: "center" }}
-              >
-                <View style={{ width: 58 }}>
-                  <Photo id={p?.logoMediaId} org={org} height={58} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.h2}>{supplier?.businessName}</Text>
-                  <Text style={s.body}>{supplier?.category}</Text>
-                  <Text style={[s.body, { fontSize: 12 }]}>
-                    {supplier?.city}
-                  </Text>
-                </View>
-              </View>
+              <Text style={s.body}>Your business could not be loaded.</Text>
             </Card>
-            <Heading title="Public portfolio" />
-            <Card>
-              <View style={s.row}>
-                <Text style={[s.label, { flex: 1 }]}>
-                  /p/{p?.slug || "your-business"}
+          )}
+          {data && tab === "Overview" && (
+            <>
+              <View>
+                <Text style={s.h1}>My Presence</Text>
+                <Text style={[s.body, { marginTop: 6 }]}>
+                  Showcase your business. Make your next connection.
                 </Text>
-                <Tag text={p?.published ? "Published" : "Draft"} />
               </View>
-              <Text style={s.body}>
-                Your business, work and listings in one place.
-              </Text>
-              <View style={s.grid}>
-                <Button
-                  label="Preview page"
-                  secondary
-                  disabled={!p}
-                  onPress={() => void showPublic()}
-                />
-                <Button
-                  label="Link & QR"
-                  secondary
-                  disabled={!p?.published}
-                  onPress={() => void showShare()}
-                />
-              </View>
-              <Text style={[s.body, { fontSize: 12 }]}>
-                Sharing becomes available after your public website is
-                connected.
-              </Text>
-            </Card>
-            <Heading
-              title="Listings snapshot"
-              action="Manage"
-              onPress={() => switchTab("Listings")}
-            />
-            <View style={s.grid}>
-              {(["PRODUCT", "SERVICE", "PACKAGE", "OFFER"] as const).map(
-                (type, i) => (
-                  <Pressable
-                    key={type}
-                    style={s.tile}
-                    accessibilityRole="button"
-                    onPress={() => {
-                      switchTab("Listings");
-                      setFilter(type);
+              <LinearGradient
+                colors={["#235AFF", "#427EF7", "#41A9D5"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ padding: 21, borderRadius: 22, gap: 17 }}
+              >
+                <View style={s.row}>
+                  <View
+                    style={{
+                      width: 78,
+                      height: 78,
+                      borderRadius: 39,
+                      borderWidth: 6,
+                      borderColor: "#92DCEB",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    <LinearGradient
-                      colors={
-                        (
-                          [
-                            ["#ECF1FF", "#F9FBFF"],
-                            ["#E5F6F1", "#F9FDFC"],
-                            ["#F4ECFF", "#FDFBFF"],
-                            ["#FFF0E5", "#FFFCF9"],
-                          ] as const
-                        )[i]!
-                      }
+                    <Text
+                      style={{ color: "#fff", fontSize: 24, fontWeight: "800" }}
+                    >
+                      {data.readiness?.score || 0}%
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}
+                    >
+                      Make it yours
+                    </Text>
+                    <Text
                       style={{
-                        padding: 17,
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor: C.line,
-                        gap: 9,
+                        color: "#E7F0FF",
+                        fontSize: 13,
+                        lineHeight: 19,
+                        marginTop: 5,
                       }}
                     >
-                      <Icon
-                        name={
+                      {p?.published
+                        ? "Your profile is published."
+                        : data.readiness?.ready
+                          ? "Your profile is ready to publish."
+                          : `Complete your profile to help clients discover you.`}
+                    </Text>
+                  </View>
+                </View>
+                {edit && (
+                  <Button
+                    label={
+                      p?.published ? "Edit profile →" : "Complete profile →"
+                    }
+                    secondary
+                    onPress={() => setEditor({ kind: "profile" })}
+                  />
+                )}
+                <Text style={{ color: "#EAF2FF", fontSize: 11 }}>
+                  Circle AI assistance · Coming later
+                </Text>
+              </LinearGradient>
+              <Heading
+                title="Business identity"
+                {...(role === "OWNER"
+                  ? {
+                      action: "Edit",
+                      onPress: () => setEditor({ kind: "business" }),
+                    }
+                  : {})}
+              />
+              <Card>
+                <Photo id={p?.coverMediaId} org={org} height={132} />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 14,
+                    alignItems: "center",
+                  }}
+                >
+                  <View style={{ width: 58 }}>
+                    <Photo id={p?.logoMediaId} org={org} height={58} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.h2}>{supplier?.businessName}</Text>
+                    <Text style={s.body}>{supplier?.category}</Text>
+                    <Text style={[s.body, { fontSize: 12 }]}>
+                      {supplier?.city}
+                    </Text>
+                  </View>
+                </View>
+              </Card>
+              <Heading title="Public portfolio" />
+              <Card>
+                <View style={s.row}>
+                  <Text style={[s.label, { flex: 1 }]}>
+                    /p/{p?.slug || "your-business"}
+                  </Text>
+                  <Tag text={p?.published ? "Published" : "Draft"} />
+                </View>
+                <Text style={s.body}>
+                  Your business, work and listings in one place.
+                </Text>
+                <View style={s.grid}>
+                  <Button
+                    label="Preview page"
+                    secondary
+                    disabled={!p}
+                    onPress={() => void showPublic()}
+                  />
+                  <Button
+                    label="Link & QR"
+                    secondary
+                    disabled={!p?.published}
+                    onPress={() => void showShare()}
+                  />
+                </View>
+                <Text style={[s.body, { fontSize: 12 }]}>
+                  Sharing becomes available after your public website is
+                  connected.
+                </Text>
+              </Card>
+              <Heading
+                title="Listings snapshot"
+                action="Manage"
+                onPress={() => switchTab("Listings")}
+              />
+              <View style={s.grid}>
+                {(["PRODUCT", "SERVICE", "PACKAGE", "OFFER"] as const).map(
+                  (type, i) => (
+                    <Pressable
+                      key={type}
+                      style={s.tile}
+                      accessibilityRole="button"
+                      onPress={() => {
+                        switchTab("Listings");
+                        setFilter(type);
+                      }}
+                    >
+                      <LinearGradient
+                        colors={
                           (
                             [
-                              "cube-outline",
-                              "construct-outline",
-                              "gift-outline",
-                              "pricetag-outline",
+                              ["#ECF1FF", "#F9FBFF"],
+                              ["#E5F6F1", "#F9FDFC"],
+                              ["#F4ECFF", "#FDFBFF"],
+                              ["#FFF0E5", "#FFFCF9"],
                             ] as const
                           )[i]!
                         }
-                      />
-                      <Text
                         style={{
-                          fontSize: 25,
-                          fontWeight: "800",
-                          color: C.ink,
+                          padding: 17,
+                          borderRadius: 16,
+                          borderWidth: 1,
+                          borderColor: C.line,
+                          gap: 9,
                         }}
                       >
-                        {
-                          active(data.content.listings).filter(
-                            (x) => x.type === type,
-                          ).length
-                        }
-                      </Text>
-                      <Text style={s.label}>
-                        {type.charAt(0) + type.slice(1).toLowerCase()}s
-                      </Text>
-                    </LinearGradient>
-                  </Pressable>
-                ),
-              )}
-            </View>
-            <Heading
-              title="Portfolio projects"
-              action="View all"
-              onPress={() => switchTab("Portfolio")}
-            />
-            {!active(data.content.portfolio).length ? (
-              <Card>
-                <Text style={s.body}>
-                  Give your next client a glimpse of what you do.
-                </Text>
-                {edit && (
-                  <Button
-                    label="Add your first project"
-                    secondary
-                    disabled={!p}
-                    onPress={() =>
-                      setEditor({ kind: "content", collection: "portfolio" })
-                    }
-                  />
-                )}
-              </Card>
-            ) : (
-              <View style={s.grid}>
-                {active(data.content.portfolio)
-                  .slice(0, 2)
-                  .map((item) => (
-                    <Pressable
-                      key={item.id}
-                      style={s.tile}
-                      onPress={() => switchTab("Portfolio")}
-                    >
-                      <Photo id={item.media[0]?.mediaId} org={org} />
-                      <Text style={[s.label, { marginTop: 8 }]}>
-                        {item.title}
-                      </Text>
-                      <Text style={s.body}>{item.status.toLowerCase()}</Text>
+                        <Icon
+                          name={
+                            (
+                              [
+                                "cube-outline",
+                                "construct-outline",
+                                "gift-outline",
+                                "pricetag-outline",
+                              ] as const
+                            )[i]!
+                          }
+                        />
+                        <Text
+                          style={{
+                            fontSize: 25,
+                            fontWeight: "800",
+                            color: C.ink,
+                          }}
+                        >
+                          {
+                            active(data.content.listings).filter(
+                              (x) => x.type === type,
+                            ).length
+                          }
+                        </Text>
+                        <Text style={s.label}>
+                          {type.charAt(0) + type.slice(1).toLowerCase()}s
+                        </Text>
+                      </LinearGradient>
                     </Pressable>
-                  ))}
+                  ),
+                )}
               </View>
-            )}
-            <Planned
-              title="Event posts"
-              description="Your posts and updates will appear here when Content Studio is available."
-            />
-            <Planned
-              title="Hosted events"
-              description="Upcoming events, dates and venues will appear here when Hosted Events is available."
-            />
-            <Planned
-              title="Reviews summary"
-              description="Client ratings and feedback are planned for a later Presence release."
-            />
-            <Heading
-              title="Contact actions"
-              {...(role === "OWNER"
-                ? {
-                    action: "Edit",
-                    onPress: () => setEditor({ kind: "business" }),
-                  }
-                : {})}
-            />
-            <Card>
-              {[
-                [
-                  "mail-outline",
-                  "Inquiry",
-                  supplier?.acceptInquiries &&
-                  data.modules.some((m) => m.id === "leads" && m.enabled)
-                    ? "Enabled"
-                    : "Disabled",
-                ],
-                ["logo-whatsapp", "WhatsApp", "Coming later"],
-                ["calendar-outline", "Consultation", "Coming later"],
-              ].map(([icon, label, status]) => (
-                <View key={label} style={[s.row, { paddingVertical: 7 }]}>
-                  <Icon
-                    name={icon as React.ComponentProps<typeof Icon>["name"]}
-                  />
-                  <Text style={[s.label, { flex: 1 }]}>{label}</Text>
-                  <Tag text={status!} />
-                </View>
-              ))}
-            </Card>
-            <Heading
-              title="Gallery"
-              action="Manage"
-              onPress={() => {
-                setTab("Portfolio");
-                setGallery(true);
-                setFilter("ALL");
-              }}
-            />
-            {!active(data.content.gallery).length ? (
-              <Card>
-                <Text style={s.body}>
-                  Add a collection of images to bring your page to life.
-                </Text>
-              </Card>
-            ) : (
-              <View style={s.grid}>
-                {active(data.content.gallery)
-                  .flatMap((x) => x.media)
-                  .slice(0, 4)
-                  .map((m, i) => (
-                    <View key={m.mediaId + i} style={s.tile}>
-                      <Photo id={m.mediaId} org={org} />
-                    </View>
-                  ))}
-              </View>
-            )}
-          </>
-        )}
-        {data && tab === "Portfolio" && (
-          <>
-            <View style={s.grid}>
-              <Button
-                label="Projects"
-                secondary={gallery}
-                onPress={() => {
-                  setGallery(false);
-                  setFilter("ALL");
-                }}
+              <Heading
+                title="Portfolio projects"
+                action="View all"
+                onPress={() => switchTab("Portfolio")}
               />
-              <Button
-                label="Gallery"
-                secondary={!gallery}
+              {!active(data.content.portfolio).length ? (
+                <Card>
+                  <Text style={s.body}>
+                    Give your next client a glimpse of what you do.
+                  </Text>
+                  {edit && (
+                    <Button
+                      label="Add your first project"
+                      secondary
+                      disabled={!p}
+                      onPress={() =>
+                        setEditor({ kind: "content", collection: "portfolio" })
+                      }
+                    />
+                  )}
+                </Card>
+              ) : (
+                <View style={s.grid}>
+                  {active(data.content.portfolio)
+                    .slice(0, 2)
+                    .map((item) => (
+                      <Pressable
+                        key={item.id}
+                        style={s.tile}
+                        onPress={() => switchTab("Portfolio")}
+                      >
+                        <Photo id={item.media[0]?.mediaId} org={org} />
+                        <Text style={[s.label, { marginTop: 8 }]}>
+                          {item.title}
+                        </Text>
+                        <Text style={s.body}>{item.status.toLowerCase()}</Text>
+                      </Pressable>
+                    ))}
+                </View>
+              )}
+              <Planned
+                title="Event posts"
+                description="Your posts and updates will appear here when Content Studio is available."
+              />
+              <Planned
+                title="Hosted events"
+                description="Upcoming events, dates and venues will appear here when Hosted Events is available."
+              />
+              <Planned
+                title="Reviews summary"
+                description="Client ratings and feedback are planned for a later Presence release."
+              />
+              <Heading
+                title="Contact actions"
+                {...(role === "OWNER"
+                  ? {
+                      action: "Edit",
+                      onPress: () => setEditor({ kind: "business" }),
+                    }
+                  : {})}
+              />
+              <Card>
+                {[
+                  [
+                    "mail-outline",
+                    "Inquiry",
+                    supplier?.acceptInquiries &&
+                    data.modules.some((m) => m.id === "leads" && m.enabled)
+                      ? "Enabled"
+                      : "Disabled",
+                  ],
+                  ["logo-whatsapp", "WhatsApp", "Coming later"],
+                  ["calendar-outline", "Consultation", "Coming later"],
+                ].map(([icon, label, status]) => (
+                  <View key={label} style={[s.row, { paddingVertical: 7 }]}>
+                    <Icon
+                      name={icon as React.ComponentProps<typeof Icon>["name"]}
+                    />
+                    <Text style={[s.label, { flex: 1 }]}>{label}</Text>
+                    <Tag text={status!} />
+                  </View>
+                ))}
+              </Card>
+              <Heading
+                title="Gallery"
+                action="Manage"
                 onPress={() => {
+                  setTab("Portfolio");
                   setGallery(true);
                   setFilter("ALL");
                 }}
               />
-            </View>
-            {contentCards(gallery ? "gallery" : "portfolio")}
-          </>
-        )}
-        {data && tab === "Listings" && contentCards("listings")}
-        {data && tab === "Profile" && (
-          <>
-            <Text style={s.h1}>Your profile</Text>
-            <Text style={s.body}>
-              {supplier?.businessName} · {role?.toLowerCase()}
-            </Text>
-            <Card>
-              <Text style={s.h2}>Publication</Text>
-              <Tag text={p?.published ? "Published" : "Draft"} />
-              <Text style={s.body}>
-                {data.readiness?.missing.length
-                  ? `Still needed: ${data.readiness.missing.join(", ")}`
-                  : "Your profile details are ready."}
-              </Text>
-              {edit && (
-                <>
-                  <Button
-                    label="Edit profile"
-                    onPress={() => setEditor({ kind: "profile" })}
-                  />
-                  <Button
-                    label={p?.published ? "Unpublish page" : "Publish page"}
-                    secondary
-                    disabled={
-                      busy || !p || (!p.published && !data.readiness?.ready)
-                    }
-                    onPress={() =>
-                      void run(async () => {
-                        await request(
-                          `/api/v1/presence/profile/${p?.published ? "unpublish" : "publish"}`,
-                          {
-                            org,
-                            method: "POST",
-                            body: { version: p?.version },
-                          },
-                        );
-                        await refresh();
-                      })
-                    }
-                  />
-                </>
+              {!active(data.content.gallery).length ? (
+                <Card>
+                  <Text style={s.body}>
+                    Add a collection of images to bring your page to life.
+                  </Text>
+                </Card>
+              ) : (
+                <View style={s.grid}>
+                  {active(data.content.gallery)
+                    .flatMap((x) => x.media)
+                    .slice(0, 4)
+                    .map((m, i) => (
+                      <View key={m.mediaId + i} style={s.tile}>
+                        <Photo id={m.mediaId} org={org} />
+                      </View>
+                    ))}
+                </View>
               )}
-            </Card>
-            {role === "OWNER" && (
+            </>
+          )}
+          {data && tab === "Portfolio" && (
+            <>
+              <View style={s.grid}>
+                <Button
+                  label="Projects"
+                  secondary={gallery}
+                  onPress={() => {
+                    setGallery(false);
+                    setFilter("ALL");
+                  }}
+                />
+                <Button
+                  label="Gallery"
+                  secondary={!gallery}
+                  onPress={() => {
+                    setGallery(true);
+                    setFilter("ALL");
+                  }}
+                />
+              </View>
+              {contentCards(gallery ? "gallery" : "portfolio")}
+            </>
+          )}
+          {data && tab === "Listings" && contentCards("listings")}
+          {data && tab === "Profile" && (
+            <>
+              <Text style={s.h1}>Your profile</Text>
+              <Text style={s.body}>
+                {supplier?.businessName} · {role?.toLowerCase()}
+              </Text>
+              <Card>
+                <Text style={s.h2}>Publication</Text>
+                <Tag text={p?.published ? "Published" : "Draft"} />
+                <Text style={s.body}>
+                  {data.readiness?.missing.length
+                    ? `Still needed: ${data.readiness.missing.map(readinessLabel).join(", ")}`
+                    : !p
+                      ? "Create your Presence profile before publishing."
+                      : "Your profile details are ready."}
+                </Text>
+                {edit && (
+                  <>
+                    <Button
+                      label="Edit profile"
+                      onPress={() => setEditor({ kind: "profile" })}
+                    />
+                    <Button
+                      label={p?.published ? "Unpublish page" : "Publish page"}
+                      secondary
+                      disabled={
+                        busy || !p || (!p.published && !data.readiness?.ready)
+                      }
+                      onPress={() =>
+                        void run(async () => {
+                          await request(
+                            `/api/v1/presence/profile/${p?.published ? "unpublish" : "publish"}`,
+                            {
+                              org,
+                              method: "POST",
+                              body: { version: p?.version },
+                            },
+                          );
+                          await refresh();
+                        })
+                      }
+                    />
+                  </>
+                )}
+              </Card>
+              {role === "OWNER" && (
+                <Button
+                  label="Edit business identity & contact"
+                  secondary
+                  onPress={() => setEditor({ kind: "business" })}
+                />
+              )}
+              <Heading title="Your businesses" />
+              {members.map((m) => (
+                <Button
+                  key={m.organizationId}
+                  label={`${m.organization.name}${m.organizationId === org ? " · Current" : ""}`}
+                  secondary={m.organizationId !== org}
+                  onPress={() => setOrg(m.organizationId)}
+                />
+              ))}
+              <Text style={s.body}>
+                {role === "VIEWER"
+                  ? "You have view-only access. Ask an owner to update your permissions if you need to edit."
+                  : "Your business details are shared across Events Circle."}
+              </Text>
               <Button
-                label="Edit business identity & contact"
+                label={loading ? "Refreshing…" : "Refresh data"}
                 secondary
-                onPress={() => setEditor({ kind: "business" })}
+                disabled={loading || busy}
+                onPress={() => void refresh()}
               />
-            )}
-            <Heading title="Your businesses" />
-            {members.map((m) => (
               <Button
-                key={m.organizationId}
-                label={`${m.organization.name}${m.organizationId === org ? " · Current" : ""}`}
-                secondary={m.organizationId !== org}
-                onPress={() => setOrg(m.organizationId)}
+                label="Sign out"
+                secondary
+                disabled={busy}
+                onPress={() => void logout()}
               />
-            ))}
-            <Text style={s.body}>
-              Connected to the Events Circle staging backend. Pull down to
-              refresh your data.
-            </Text>
-            <Button
-              label="Sign out"
-              secondary
-              disabled={busy}
-              onPress={() => void logout()}
-            />
-          </>
-        )}
-      </ScrollView>
-      <View
-        style={{
-          flexDirection: "row",
-          backgroundColor: "#fff",
-          borderTopWidth: 1,
-          borderColor: C.line,
-          paddingTop: 8,
-          paddingBottom: 8,
-        }}
-      >
-        {(["Overview", "Portfolio", "Listings", "Profile"] as const).map(
-          (name, i) => (
-            <Pressable
-              key={name}
-              accessibilityRole="tab"
-              accessibilityLabel={name}
-              accessibilityState={{ selected: tab === name }}
-              onPress={() => switchTab(name)}
-              style={{
-                flex: 1,
-                alignItems: "center",
-                paddingVertical: 9,
-                gap: 5,
-                backgroundColor: tab === name ? "#EEF3FF" : "#fff",
-              }}
-            >
-              <Icon
-                name={
-                  (
-                    [
-                      "home-outline",
-                      "images-outline",
-                      "grid-outline",
-                      "person-outline",
-                    ] as const
-                  )[i]!
-                }
-                color={tab === name ? C.blue : C.muted}
-              />
-              <Text
+            </>
+          )}
+        </ScrollView>
+        <View
+          style={{
+            flexDirection: "row",
+            backgroundColor: "#fff",
+            borderTopWidth: 1,
+            borderColor: C.line,
+            paddingTop: 8,
+            paddingBottom: 8,
+          }}
+        >
+          {(["Overview", "Portfolio", "Listings", "Profile"] as const).map(
+            (name, i) => (
+              <Pressable
+                key={name}
+                accessibilityRole="tab"
+                accessibilityLabel={name}
+                accessibilityState={{ selected: tab === name }}
+                aria-selected={tab === name}
+                onPress={() => switchTab(name)}
                 style={{
-                  fontSize: 11,
-                  color: tab === name ? C.blue : C.muted,
-                  fontWeight: tab === name ? "700" : "400",
+                  flex: 1,
+                  alignItems: "center",
+                  paddingVertical: 9,
+                  gap: 5,
+                  backgroundColor: tab === name ? "#EEF3FF" : "#fff",
                 }}
               >
-                {name}
-              </Text>
-            </Pressable>
-          ),
-        )}
+                <Icon
+                  name={
+                    (
+                      [
+                        "home-outline",
+                        "images-outline",
+                        "grid-outline",
+                        "person-outline",
+                      ] as const
+                    )[i]!
+                  }
+                  color={tab === name ? C.blue : C.muted}
+                />
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: tab === name ? C.blue : C.muted,
+                    fontWeight: tab === name ? "700" : "400",
+                  }}
+                >
+                  {name}
+                </Text>
+              </Pressable>
+            ),
+          )}
+        </View>
       </View>
       <Modal
         visible={!!editor}
-        animationType="slide"
-        onRequestClose={() => setEditor(null)}
+        animationType={Platform.OS === "web" ? "none" : "slide"}
+        onRequestClose={closeEditor}
       >
-        <SafeAreaView style={s.root}>
+        <SafeAreaView
+          style={s.root}
+          aria-hidden={!!confirmation}
+          accessibilityElementsHidden={!!confirmation}
+        >
           <View style={[s.row, { padding: 18 }]}>
             <Text style={s.h2}>Presence</Text>
-            <Button label="Close" secondary onPress={() => setEditor(null)} />
+            <Button
+              label="Close"
+              secondary
+              disabled={editorState.busy}
+              onPress={closeEditor}
+            />
           </View>
           <KeyboardAvoidingView
             style={{ flex: 1 }}
@@ -962,13 +1057,19 @@ function AppBody() {
               contentContainerStyle={s.page}
             >
               {data && editor?.kind === "profile" && (
-                <ProfileForm data={data} org={org} onSaved={saved} />
+                <ProfileForm
+                  data={data}
+                  org={org}
+                  onSaved={saved}
+                  onState={setEditorState}
+                />
               )}
               {data && editor?.kind === "business" && (
                 <BusinessForm
                   supplier={data.supplier}
                   org={org}
                   onSaved={saved}
+                  onState={setEditorState}
                 />
               )}
               {editor?.kind === "content" && (
@@ -977,6 +1078,7 @@ function AppBody() {
                   item={editor.item}
                   org={org}
                   onSaved={saved}
+                  onState={setEditorState}
                 />
               )}
               {editor?.kind === "share" && (
@@ -986,6 +1088,11 @@ function AppBody() {
                     <Text style={s.body}>{modalError}</Text>
                   ) : share ? (
                     <Card>
+                      {!!notice && (
+                        <Text accessibilityRole="alert" style={s.body}>
+                          {notice}
+                        </Text>
+                      )}
                       <View style={{ alignItems: "center", padding: 16 }}>
                         <QRCode value={share.qrPayload} size={190} />
                       </View>
@@ -1001,11 +1108,23 @@ function AppBody() {
                         }
                       />
                       <Button
-                        label="Share link"
+                        label={
+                          Platform.OS === "web"
+                            ? "Copy link to share"
+                            : "Share link"
+                        }
                         secondary
                         onPress={() =>
-                          void Share.share({ message: share.url }).catch(() =>
-                            setModalError("Could not share this link."),
+                          void (
+                            Platform.OS === "web"
+                              ? Clipboard.setStringAsync(share.url).then(() =>
+                                  setNotice("Link copied. Ready to paste."),
+                                )
+                              : Share.share({ message: share.url })
+                          ).catch(() =>
+                            setModalError(
+                              "Could not share this link. You can select and copy the address above.",
+                            ),
                           )
                         }
                       />
@@ -1015,10 +1134,7 @@ function AppBody() {
                         onPress={() =>
                           void Clipboard.setStringAsync(share.url)
                             .then(() =>
-                              Alert.alert(
-                                "Copied",
-                                "Your public link is ready to paste.",
-                              ),
+                              setNotice("Link copied. Ready to paste."),
                             )
                             .catch(() =>
                               setModalError("Could not copy the link."),
@@ -1040,6 +1156,11 @@ function AppBody() {
                   {!!modalError && <Text style={s.body}>{modalError}</Text>}
                   {p?.published && !publicData && !modalError ? (
                     <ActivityIndicator />
+                  ) : p?.published && modalError ? (
+                    <Button
+                      label="Retry preview"
+                      onPress={() => void showPublic()}
+                    />
                   ) : (
                     <>
                       <Photo
@@ -1069,6 +1190,15 @@ function AppBody() {
                               <Card key={item.id}>
                                 <Photo id={item.media[0]?.mediaId} org={org} />
                                 <Text style={s.h2}>{item.title}</Text>
+                                {!p?.published && (
+                                  <Tag
+                                    text={
+                                      "status" in item
+                                        ? String(item.status).toLowerCase()
+                                        : "draft"
+                                    }
+                                  />
+                                )}
                                 <Text style={s.body}>{item.summary}</Text>
                               </Card>
                             ))}
@@ -1082,6 +1212,50 @@ function AppBody() {
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
+      </Modal>
+      <Modal
+        visible={!!confirmation}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmation(null)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "#10224980",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <View
+            style={[
+              s.card,
+              { width: "100%", maxWidth: 420, alignSelf: "center" },
+            ]}
+          >
+            <Text accessibilityRole="header" style={s.h2}>
+              {confirmation?.title}
+            </Text>
+            <Text style={s.body}>{confirmation?.message}</Text>
+            <Button
+              label={
+                confirmation?.label === "Discard changes"
+                  ? "Keep editing"
+                  : "Cancel"
+              }
+              secondary
+              onPress={() => setConfirmation(null)}
+            />
+            <Button
+              label={confirmation?.label || "Confirm"}
+              onPress={() => {
+                const action = confirmation?.accept;
+                setConfirmation(null);
+                action?.();
+              }}
+            />
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -1104,6 +1278,13 @@ function AuthScreen({
     setBusy(true);
     setError("");
     try {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+        throw new HttpError(400, "Enter a valid email address.");
+      if (register && (password.length < 12 || password.length > 128))
+        throw new HttpError(
+          400,
+          "Choose a password between 12 and 128 characters.",
+        );
       if (register)
         await session.register({
           email: email.trim(),

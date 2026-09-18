@@ -1,0 +1,646 @@
+import { test, expect, type Page } from "@playwright/test";
+const api = "https://events-circle-api-production.up.railway.app";
+async function fixture(
+  page: Page,
+  options: {
+    role?: string;
+    published?: boolean;
+    previewFail?: boolean;
+    shareFail?: boolean;
+    failLoad?: boolean;
+    conflict?: boolean;
+  } = {},
+) {
+  const state = {
+    failLoad: !!options.failLoad,
+    profile: {
+      id: "p",
+      supplierId: "s",
+      slug: "qa-studio",
+      description: "A thoughtful event studio.",
+      tagline: "Made for you",
+      published: !!options.published,
+      version: 1,
+      publishedAt: null,
+      logoMediaId: null,
+      coverMediaId: null,
+    },
+    items: { portfolio: [], listings: [], gallery: [] } as Record<
+      string,
+      any[]
+    >,
+    calls: [] as { path: string; body: any; method: string }[],
+    imageReads: 0,
+    uploads: 0,
+  };
+  const supplier = {
+    id: "s",
+    organizationId: "org",
+    businessName: "QA Studio",
+    category: "Event planner",
+    city: "Beirut",
+    serviceAreas: [],
+    acceptInquiries: true,
+  };
+  await page.route(api + "/**", async (route) => {
+    const request = route.request(),
+      path = new URL(request.url()).pathname,
+      method = request.method();
+    const body =
+      request.postData() &&
+      request.headers()["content-type"]?.includes("application/json")
+        ? request.postDataJSON()
+        : null;
+    state.calls.push({ path, body, method });
+    let data: any = {},
+      status = 200;
+    if (path.endsWith("/auth/login"))
+      data = {
+        accessToken: "qa-access",
+        refreshToken: "qa-refresh",
+        expiresIn: 600,
+        tokenType: "Bearer",
+      };
+    else if (path.endsWith("/auth/logout")) data = {};
+    else if (path.endsWith("/memberships"))
+      data = [
+        {
+          organizationId: "org",
+          role: options.role || "OWNER",
+          organization: { name: "QA Studio" },
+        },
+      ];
+    else if (path.endsWith("/suppliers/current")) {
+      data = supplier;
+      if (state.failLoad) status = 500;
+    } else if (path.endsWith("/catalogs/categories"))
+      data = [
+        {
+          id: "category-events",
+          label: "Event planning",
+          active: true,
+          kind: "CATEGORY",
+        },
+      ];
+    else if (path.endsWith("/modules"))
+      data = [{ id: "presence", enabled: true, implemented: true }];
+    else if (path.endsWith("/readiness"))
+      data = { score: 100, ready: true, missing: [] };
+    else if (
+      path.endsWith("/profile/publish") ||
+      path.endsWith("/profile/unpublish")
+    ) {
+      state.profile.published = path.endsWith("/publish");
+      state.profile.version++;
+      data = state.profile;
+    } else if (path.endsWith("/presence/profile")) {
+      if (method === "PUT") {
+        if (options.conflict) status = 409;
+        else
+          state.profile = {
+            ...state.profile,
+            ...body,
+            version: state.profile.version + 1,
+          };
+      }
+      data = state.profile;
+    } else if (path.endsWith("/share")) {
+      status = options.shareFail ? 503 : 200;
+      data = {
+        url: "https://example.com/qa-studio",
+        qrPayload: "https://example.com/qa-studio",
+        title: "QA Studio",
+        description: "Studio",
+      };
+    } else if (path.includes("/presence/public/")) {
+      status = options.previewFail ? 500 : 200;
+      data = { ...state.profile, supplier, ...state.items };
+    } else if (path === "/api/v1/core/media" && method === "POST") {
+      data = { id: "image-" + ++state.uploads };
+      status = 201;
+    } else if (/\/media\/image-\d+\/file$/.test(path)) {
+      expect(request.headers().authorization).toBe("Bearer qa-access");
+      expect(request.headers()["x-organization-id"]).toBe("org");
+      state.imageReads++;
+      await route.fulfill({
+        contentType: "image/png",
+        body: Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
+          "base64",
+        ),
+      });
+      return;
+    } else if (path.includes("/collections/")) {
+      const parts = path.split("/"),
+        collection = parts[5]!,
+        id = parts[6],
+        action = parts[7];
+      const items = state.items[collection]!;
+      if (!id && method === "POST") {
+        data = {
+          id: "item-" + items.length,
+          ...body,
+          status: "DRAFT",
+          version: 1,
+        };
+        items.push(data);
+        status = 201;
+      } else if (id) {
+        const item = items.find((x) => x.id === id);
+        if (method === "PUT")
+          Object.assign(item, body, { version: item.version + 1 });
+        else if (method === "DELETE") item.status = "ARCHIVED";
+        else if (action)
+          item.status = action === "publish" ? "PUBLISHED" : "DRAFT";
+        data = item;
+      } else data = items;
+    } else {
+      status = 404;
+      data = {};
+    }
+    await route.fulfill({
+      status,
+      contentType: "application/json",
+      body: JSON.stringify(data),
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Login", exact: true }).click();
+  await page
+    .getByLabel("Email address", { exact: true })
+    .fill("qa@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("testing-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  return state;
+}
+const tab = (page: Page, name: string) =>
+  page.getByRole("tab", { name, exact: true }).click();
+const button = (page: Page, name: string) =>
+  page.getByRole("button", { name, exact: true });
+test("listing price, editing, publish, archive cancellation and restore", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await tab(page, "Listings");
+  await button(page, "+ Add").click();
+  await page.getByLabel("Title", { exact: true }).fill("Planning session");
+  await button(page, "Event planning").click();
+  await button(page, "Starting from").click();
+  await page.getByLabel("Price · e.g. 25.00").fill("25.50");
+  await button(page, "Save").click();
+  await expect(
+    page.getByText("Planning session", { exact: true }),
+  ).toBeVisible();
+  expect(state.items.listings![0].amountMinor).toBe(2550);
+  expect(state.items.listings![0].categoryId).toBe("category-events");
+  await expect(page.getByText(/From \$25.50/)).toBeVisible();
+  await button(page, "Edit").click();
+  await expect(page.getByLabel("Price · e.g. 25.00")).toHaveValue("25.50");
+  await button(page, "Close").click();
+  await button(page, "Publish").click();
+  await expect(button(page, "Unpublish")).toBeVisible();
+  await button(page, "Unpublish").click();
+  await expect(button(page, "Publish")).toBeVisible();
+  await button(page, "Publish").click();
+  await expect(button(page, "Unpublish")).toBeVisible();
+  await button(page, "Archive").click();
+  await button(page, "Cancel").click();
+  expect(state.items.listings![0].status).toBe("PUBLISHED");
+  await button(page, "Archive").click();
+  await button(page, "Archive item").click();
+  await button(page, "Archived").click();
+  await button(page, "Restore draft").click();
+  await expect(
+    page.getByText("No archived items", { exact: true }),
+  ).toBeVisible();
+  expect(state.items.listings![0].status).toBe("DRAFT");
+});
+test("portfolio and gallery creation, unsaved changes and scoped filters", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await tab(page, "Portfolio");
+  await button(page, "+ Add").click();
+  await page.getByLabel("Title", { exact: true }).fill("Unsaved work");
+  await button(page, "Close").click();
+  await expect(
+    page.getByText("Discard unsaved changes?", { exact: true }),
+  ).toBeVisible();
+  await button(page, "Keep editing").click();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
+    "Unsaved work",
+  );
+  await button(page, "Close").click();
+  await button(page, "Discard changes").click();
+  await button(page, "+ Add").click();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue("");
+  await page.getByLabel("Title", { exact: true }).fill("Garden wedding");
+  await button(page, "Save").click();
+  expect(state.items.portfolio).toHaveLength(1);
+  await button(page, "Gallery").click();
+  await button(page, "+ Add").click();
+  await page.getByLabel("Title", { exact: true }).fill("Summer album");
+  await button(page, "Save").click();
+  expect(state.items.gallery).toHaveLength(1);
+  await tab(page, "Listings");
+  await button(page, "Product").click();
+  await expect(
+    page.getByText("No matching listings", { exact: true }),
+  ).toBeVisible();
+});
+test("profile publication, draft preview and share availability", async ({
+  page,
+}) => {
+  const state = await fixture(page, { shareFail: true });
+  await button(page, "Preview page").click();
+  await expect(page.getByText(/Your page is still a draft/)).toBeVisible();
+  await button(page, "Close").click();
+  await tab(page, "Profile");
+  await button(page, "Publish page").click();
+  await expect(button(page, "Unpublish page")).toBeVisible();
+  expect(state.profile.published).toBe(true);
+  await tab(page, "Overview");
+  await button(page, "Link & QR").click();
+  await expect(
+    page.getByText(/Public website sharing is not available yet/),
+  ).toBeVisible();
+  await button(page, "Close").click();
+  await tab(page, "Profile");
+  await button(page, "Unpublish page").click();
+  expect(state.profile.published).toBe(false);
+});
+test("public preview failure does not present private content as public", async ({
+  page,
+}) => {
+  await fixture(page, { published: true, previewFail: true });
+  await button(page, "Preview page").click();
+  await expect(button(page, "Retry preview")).toBeVisible();
+  await expect(
+    page.getByText("A thoughtful event studio.", { exact: true }),
+  ).not.toBeVisible();
+});
+test("loading failure can recover using Retry", async ({ page }) => {
+  const state = await fixture(page, { failLoad: true });
+  await expect(button(page, "Retry")).toBeVisible();
+  state.failLoad = false;
+  await button(page, "Retry").click();
+  await expect(page.getByText("My Presence", { exact: true })).toBeVisible();
+});
+test("viewer cannot edit or publish and has clear guidance", async ({
+  page,
+}) => {
+  await fixture(page, { role: "VIEWER" });
+  await tab(page, "Listings");
+  await expect(button(page, "+ Add")).toHaveCount(0);
+  await expect(page.getByText(/An owner or editor can add/)).toBeVisible();
+  await tab(page, "Profile");
+  await expect(button(page, "Edit profile")).toHaveCount(0);
+  await expect(button(page, "Publish page")).toHaveCount(0);
+  await expect(page.getByText(/You have view-only access/)).toBeVisible();
+});
+test("version conflict keeps edits and gives recovery guidance", async ({
+  page,
+}) => {
+  await fixture(page, { conflict: true });
+  await tab(page, "Profile");
+  await button(page, "Edit profile").click();
+  await page.getByLabel("Tagline", { exact: true }).fill("My new tagline");
+  await button(page, "Save profile").click();
+  await expect(page.getByText(/This item changed/)).toBeVisible();
+  await expect(page.getByLabel("Tagline", { exact: true })).toHaveValue(
+    "My new tagline",
+  );
+});
+test("signup validates email and password before making a request", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await button(page, "Sign up with email").click();
+  await page.getByLabel("Your name", { exact: true }).fill("Test");
+  await page.getByLabel("Email address", { exact: true }).fill("invalid");
+  await page.getByLabel("Password · 12–128 characters").fill("short");
+  await button(page, "Create account").click();
+  await expect(
+    page.getByText("Enter a valid email address.", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Email address", { exact: true })
+    .fill("qa@example.test");
+  await button(page, "Create account").click();
+  await expect(
+    page.getByText("Choose a password between 12 and 128 characters.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await button(page, "Show password").click();
+  await expect(page.getByLabel("Password · 12–128 characters")).toHaveAttribute(
+    "type",
+    "text",
+  );
+});
+test("editor role edits presence but cannot edit shared business identity", async ({
+  page,
+}) => {
+  await fixture(page, { role: "EDITOR" });
+  await tab(page, "Profile");
+  await expect(button(page, "Edit profile")).toBeVisible();
+  await expect(button(page, "Edit business identity & contact")).toHaveCount(0);
+});
+test("private media carries credentials on web and form upload remains usable", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await tab(page, "Profile");
+  await button(page, "Edit profile").click();
+  const chooser = page.waitForEvent("filechooser");
+  await button(page, "Choose logo").click();
+  await (
+    await chooser
+  ).setFiles({
+    name: "logo.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await expect.poll(() => state.imageReads).toBeGreaterThan(0);
+  await button(page, "Save profile").click();
+  await expect.poll(() => state.profile.logoMediaId).toBe("image-1");
+});
+
+test("offer expiry and price validation avoid accidental bad saves", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await tab(page, "Listings");
+  await button(page, "+ Add").click();
+  await page.getByLabel("Title", { exact: true }).fill("Autumn offer");
+  await button(page, "Offer").click();
+  await button(page, "Fixed price").click();
+  await page.getByLabel("Price · e.g. 25.00").fill("25.555");
+  await button(page, "Save").click();
+  await expect(page.getByText(/up to 2 decimal places/)).toBeVisible();
+  expect(state.items.listings).toHaveLength(0);
+  await page.getByLabel("Price · e.g. 25.00").fill("25");
+  await page.getByLabel("Offer expiry · YYYY-MM-DD (UTC)").fill("2027-02-31");
+  await button(page, "Save").click();
+  await expect(
+    page.getByText("Enter a valid expiry date as YYYY-MM-DD.", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Offer expiry · YYYY-MM-DD (UTC)").fill("2027-12-31");
+  await button(page, "Save").click();
+  await expect
+    .poll(() => state.items.listings![0]?.validUntil)
+    .toBe("2027-12-31T23:59:59.999Z");
+});
+test("publish errors name missing content and stay recoverable", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await tab(page, "Listings");
+  await button(page, "+ Add").click();
+  await page.getByLabel("Title", { exact: true }).fill("Draft");
+  await button(page, "Save").click();
+  await page.route(
+    api + "/api/v1/presence/collections/listings/*/publish",
+    (route) =>
+      route.fulfill({
+        status: 422,
+        contentType: "application/json",
+        body: JSON.stringify({
+          details: { missing: ["category", "media", "description"] },
+        }),
+      }),
+  );
+  await button(page, "Publish").click();
+  await expect(
+    page.getByText(/Not ready yet.*Business category.*Cover image/),
+  ).toBeVisible();
+  expect(state.items.listings![0].status).toBe("DRAFT");
+  await expect(button(page, "Edit")).toBeEnabled();
+});
+test("successful public preview and share show supplied public data", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await fixture(page, { published: true });
+  await button(page, "Preview page").click();
+  await expect(
+    page.getByText("A thoughtful event studio.", { exact: true }),
+  ).toBeVisible();
+  await button(page, "Close").click();
+  await button(page, "Link & QR").click();
+  await expect(
+    page.getByText("https://example.com/qa-studio", { exact: true }),
+  ).toBeVisible();
+  await button(page, "Copy link").click();
+  await expect(
+    page.getByText("Link copied. Ready to paste.", { exact: true }),
+  ).toBeVisible();
+});
+test("an expired session returns to a usable sign-in screen", async ({
+  page,
+}) => {
+  await fixture(page);
+  await tab(page, "Profile");
+  await page.route(api + "/api/v1/presence/profile", (route) =>
+    route.fulfill({ status: 401, contentType: "application/json", body: "{}" }),
+  );
+  await button(page, "Refresh data").click();
+  await expect(button(page, "Login")).toBeVisible();
+  await expect(page.getByText(/session expired/)).toBeVisible();
+});
+test("catalog failure can be retried without losing the draft", async ({
+  page,
+}) => {
+  await fixture(page);
+  await page.route(api + "/api/v1/core/catalogs/categories", (route) =>
+    route.fulfill({ status: 503, body: "{}" }),
+  );
+  await tab(page, "Portfolio");
+  await button(page, "+ Add").click();
+  await page.getByLabel("Title", { exact: true }).fill("Keep this draft");
+  await expect(button(page, "Retry categories")).toBeVisible();
+  await page.unroute(api + "/api/v1/core/catalogs/categories");
+  await button(page, "Retry categories").click();
+  await expect(button(page, "Event planning")).toBeVisible();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
+    "Keep this draft",
+  );
+});
+test("web layout keeps navigation and editor fields within the viewport", async ({
+  page,
+}, testInfo) => {
+  await fixture(page);
+  for (const name of ["Overview", "Portfolio", "Listings", "Profile"]) {
+    await tab(page, name);
+    await expect(page.getByRole("tab", { name, exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    expect(overflow).toBe(false);
+    await page.screenshot({
+      path: testInfo.outputPath(name.toLowerCase() + ".png"),
+    });
+  }
+  await button(page, "Edit profile").click();
+  await expect(
+    page.getByLabel("Public page address · e.g. ever-after-events"),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("profile-editor.png") });
+});
+test("business editing validates required details and preserves API ownership", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await tab(page, "Profile");
+  await button(page, "Edit business identity & contact").click();
+  await page.getByLabel("Business name", { exact: true }).fill("");
+  await button(page, "Save business").click();
+  await expect(
+    page.getByText("Business name, category and city are required.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Business name", { exact: true })
+    .fill("Updated Studio");
+  await page.getByLabel("Contact email", { exact: true }).fill("invalid");
+  await button(page, "Save business").click();
+  await expect(
+    page.getByText("Enter a valid contact email, or leave it blank.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Contact email", { exact: true })
+    .fill("contact@example.test");
+  await button(page, "Save business").click();
+  await expect(page.getByText("Changes saved.", { exact: true })).toBeVisible();
+  expect(
+    state.calls.find(
+      (c) => c.method === "PUT" && c.path.endsWith("/suppliers/current"),
+    )?.body.businessName,
+  ).toBe("Updated Studio");
+});
+test("invalid profile address and media upload failure keep the editor usable", async ({
+  page,
+}) => {
+  await fixture(page);
+  await tab(page, "Profile");
+  await button(page, "Edit profile").click();
+  await page
+    .getByLabel("Public page address · e.g. ever-after-events")
+    .fill("bad address");
+  await button(page, "Save profile").click();
+  await expect(
+    page.getByText(/Choose a 3–80 character public page address/),
+  ).toBeVisible();
+  await page.route(api + "/api/v1/core/media", (route) =>
+    route.fulfill({ status: 503, body: "{}" }),
+  );
+  const chooser = page.waitForEvent("filechooser");
+  await button(page, "Choose logo").click();
+  await (
+    await chooser
+  ).setFiles({
+    name: "logo.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await expect(page.getByText(/Upload failed/)).toBeVisible();
+  await expect(button(page, "Choose logo")).toBeEnabled();
+});
+test("gallery images can be reordered and removed before saving", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await tab(page, "Portfolio");
+  await button(page, "Gallery").click();
+  await button(page, "+ Add").click();
+  await page.getByLabel("Title", { exact: true }).fill("Gallery");
+  for (let i = 0; i < 2; i++) {
+    const chooser = page.waitForEvent("filechooser");
+    await button(page, "Add image").click();
+    await (
+      await chooser
+    ).setFiles({
+      name: "image.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
+    await expect(
+      page.getByLabel("Image description for accessibility"),
+    ).toHaveCount(i + 1);
+  }
+  await button(page, "Make cover").click();
+  await button(page, "Remove").last().click();
+  await button(page, "Save").click();
+  await expect.poll(() => state.items.gallery?.length).toBe(1);
+  expect(state.items.gallery![0].media).toEqual([
+    { mediaId: "image-2", role: "COVER", altText: "Gallery" },
+  ]);
+});
+test("switching businesses clears old content and sends the selected organization", async ({
+  page,
+}) => {
+  await fixture(page);
+  await page.route(api + "/api/v1/core/memberships", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          organizationId: "org",
+          role: "OWNER",
+          organization: { name: "QA Studio" },
+        },
+        {
+          organizationId: "other-org",
+          role: "VIEWER",
+          organization: { name: "Other Studio" },
+        },
+      ]),
+    }),
+  );
+  await tab(page, "Profile");
+  await button(page, "Sign out").click();
+  await button(page, "Login").click();
+  await page
+    .getByLabel("Email address", { exact: true })
+    .fill("qa@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("testing-password");
+  await button(page, "Sign in").click();
+  await expect(page.getByText("My Presence", { exact: true })).toBeVisible();
+  await page.route(api + "/api/v1/core/suppliers/current", (route) => {
+    expect(route.request().headers()["x-organization-id"]).toBe("other-org");
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "other",
+        organizationId: "other-org",
+        businessName: "Other Studio",
+        category: "Music",
+        city: "Beirut",
+        serviceAreas: [],
+        acceptInquiries: false,
+      }),
+    });
+  });
+  await tab(page, "Profile");
+  await button(page, "Other Studio").click();
+  await expect(
+    page.getByText("Other Studio · viewer", { exact: true }),
+  ).toBeVisible();
+  await expect(button(page, "Edit profile")).toHaveCount(0);
+});

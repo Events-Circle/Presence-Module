@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -161,21 +162,45 @@ export function Photo({
 }) {
   const [headers, setHeaders] = useState<Record<string, string>>();
   const [failed, setFailed] = useState(false);
+  const [webUri, setWebUri] = useState<string>();
   useEffect(() => {
     let current = true;
+    let objectUrl: string | undefined;
+    const controller = new AbortController();
     setHeaders(undefined);
+    setWebUri(undefined);
     setFailed(false);
     if (id)
       authorization()
-        .then((value) => {
-          if (current)
-            setHeaders({ Authorization: value, "X-Organization-Id": org });
+        .then(async (value) => {
+          const imageHeaders = {
+            Authorization: value,
+            "X-Organization-Id": org,
+          };
+          if (Platform.OS === "web") {
+            const response = await fetch(
+              `${origin}/api/v1/core/media/${id}/file`,
+              {
+                headers: imageHeaders,
+                credentials: "omit",
+                signal: controller.signal,
+              },
+            );
+            if (!response.ok) throw new Error("Image unavailable");
+            const blob = await response.blob();
+            if (!current) return;
+            objectUrl = URL.createObjectURL(blob);
+            setWebUri(objectUrl);
+          }
+          if (current) setHeaders(imageHeaders);
         })
         .catch(() => {
           if (current) setFailed(true);
         });
     return () => {
       current = false;
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [id, org]);
   if (!id || failed)
@@ -190,6 +215,11 @@ export function Photo({
         }}
       >
         <Icon name="image-outline" size={28} color="#8399BD" />
+        {failed && (
+          <Text style={{ color: C.muted, fontSize: 11, textAlign: "center" }}>
+            Image unavailable
+          </Text>
+        )}
       </LinearGradient>
     );
   if (!headers)
@@ -201,7 +231,11 @@ export function Photo({
   return (
     <Image
       accessibilityLabel="Business image"
-      source={{ uri: `${origin}/api/v1/core/media/${id}/file`, headers }}
+      source={
+        Platform.OS === "web"
+          ? { uri: webUri }
+          : { uri: `${origin}/api/v1/core/media/${id}/file`, headers }
+      }
       onError={() => setFailed(true)}
       style={{ height, width: "100%", borderRadius: 12 }}
     />

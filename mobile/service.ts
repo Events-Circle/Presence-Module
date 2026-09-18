@@ -1,3 +1,4 @@
+import { readinessLabel } from "../src/formatting";
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import * as ImagePicker from "expo-image-picker";
@@ -130,7 +131,7 @@ export async function request<T>(
             : r.status === 409
               ? "This item changed. Close this editor and refresh before trying again."
               : r.status === 422
-                ? `Not ready yet. ${missing.join(", ") || "Check the fields and required images."}`
+                ? `Not ready yet. ${missing.map(readinessLabel).join(", ") || "Check the fields and required images."}`
                 : r.status === 503
                   ? "This feature is not configured yet."
                   : r.status === 400
