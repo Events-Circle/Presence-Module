@@ -8,11 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  getCountries,
-  getCountryCallingCode,
-  type CountryCode,
-} from "libphonenumber-js";
+import { type CountryCode } from "libphonenumber-js";
 import { C, Icon, s } from "./ui";
 
 export function SetupField({
@@ -260,13 +256,7 @@ export function SearchSelect({
     </View>
   );
 }
-const names = new Intl.DisplayNames(["en"], { type: "region" });
-export const countryOptions = getCountries()
-  .map((code) => ({
-    value: code,
-    label: `${names.of(code) || code} (+${getCountryCallingCode(code)})`,
-  }))
-  .sort((a, b) => a.label.localeCompare(b.label));
+export { countryOptions } from "../src/country-options";
 export const businessCategories = [
   "Event planner",
   "Venue",
