@@ -503,7 +503,7 @@ test("business editing validates required details and preserves API ownership", 
   await page.getByLabel("Business name", { exact: true }).fill("");
   await button(page, "Save business").click();
   await expect(
-    page.getByText("Business name, category and city are required.", {
+    page.getByText("Enter your business name.", {
       exact: true,
     }),
   ).toBeVisible();
@@ -643,4 +643,36 @@ test("switching businesses clears old content and sends the selected organizatio
     page.getByText("Other Studio · viewer", { exact: true }),
   ).toBeVisible();
   await expect(button(page, "Edit profile")).toHaveCount(0);
+});
+
+test("business setup uses searchable choices and accepts human phone formatting", async ({
+  page,
+}, testInfo) => {
+  const state = await fixture(page);
+  await tab(page, "Profile");
+  await button(page, "Edit business identity & contact").click();
+  await expect(page.getByText("Fields marked * are required.")).toBeVisible();
+  await button(page, "Category").click();
+  await page
+    .getByLabel("Search category", { exact: true })
+    .fill("Creative production");
+  await button(page, "Add “Creative production”").click();
+  await button(page, "Country code").click();
+  await page.getByLabel("Search country code", { exact: true }).fill("Lebanon");
+  await page.getByRole("button", { name: /Lebanon/ }).click();
+  await page.getByLabel("Phone number", { exact: true }).fill("01 234 567");
+  await expect(
+    page.getByText(/Turning this off stops new inquiries/),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("business-setup.png"),
+    fullPage: true,
+  });
+  await button(page, "Save business").click();
+  await expect(page.getByText("Changes saved.", { exact: true })).toBeVisible();
+  const saved = state.calls.find(
+    (c) => c.method === "PUT" && c.path.endsWith("/suppliers/current"),
+  )?.body;
+  expect(saved.category).toBe("Creative production");
+  expect(saved.contactPhone).toBe("+9611234567");
 });

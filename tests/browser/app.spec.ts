@@ -154,7 +154,7 @@ test("failed login stays actionable", async ({ page }) => {
 
 test("new supplier registration reaches a real empty dashboard", async ({
   page,
-}) => {
+}, testInfo) => {
   let created = false;
   let supplier: any;
   await page.route(api + "/**", async (route) => {
@@ -216,10 +216,12 @@ test("new supplier registration reaches a real empty dashboard", async ({
   await expect(
     page.getByText("Set up your business", { exact: true }),
   ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("onboarding-top.png") });
   await page.getByLabel("Business name", { exact: true }).fill("New Studio");
+  await page.getByRole("button", { name: "Category", exact: true }).click();
   await page
-    .getByLabel("Category · e.g. Event planner", { exact: true })
-    .fill("Event planner");
+    .getByRole("button", { name: "Event planner", exact: true })
+    .click();
   await page.getByLabel("City", { exact: true }).fill("Beirut");
   await page
     .getByRole("button", { name: "Save business", exact: true })

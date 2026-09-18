@@ -15,6 +15,16 @@ import {
   displayAmount,
   listingCurrencies,
 } from "../src/formatting";
+import { LinearGradient } from "expo-linear-gradient";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { businessPhone } from "../src/business-phone";
+import {
+  SetupField,
+  SearchSelect,
+  countryOptions,
+  businessCategories,
+  type CountryCode,
+} from "./business-fields";
 import type { Snapshot } from "./data";
 type EditorState = (state: { dirty: boolean; busy: boolean }) => void;
 function useEditorState(value: unknown, busy: boolean, onState?: EditorState) {
@@ -39,29 +49,47 @@ export function BusinessForm({
   const [category, setCategory] = useState(supplier?.category || "");
   const [city, setCity] = useState(supplier?.city || "");
   const [email, setEmail] = useState(supplier?.contactEmail || "");
-  const [phone, setPhone] = useState(supplier?.contactPhone || "");
+  const initialPhone = supplier?.contactPhone
+    ? parsePhoneNumberFromString(supplier.contactPhone)
+    : undefined;
+  const [country, setCountry] = useState<CountryCode>(
+    initialPhone?.country || "LB",
+  );
+  const [phone, setPhone] = useState(
+    initialPhone?.formatNational() || supplier?.contactPhone || "",
+  );
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [inquiries, setInquiries] = useState(supplier?.acceptInquiries ?? true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEditorState(
-    { name, category, city, email, phone, inquiries },
+    { name, category, city, email, phone, country, inquiries },
     busy,
     onState,
   );
   async function save() {
-    setBusy(true);
-    setError("");
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = "Enter your business name.";
+    if (!category.trim())
+      errors.category = "Choose a category or add your own.";
+    if (!city.trim())
+      errors.city = "Enter the city where your business is based.";
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      errors.email = "Enter a valid contact email, or leave it blank.";
+    let normalizedPhone: string | null = null;
     try {
-      if (!name.trim() || !category.trim() || !city.trim())
-        throw new HttpError(
-          400,
-          "Business name, category and city are required.",
-        );
-      if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
-        throw new HttpError(
-          400,
-          "Enter a valid contact email, or leave it blank.",
-        );
+      normalizedPhone = businessPhone(phone, country);
+    } catch (e) {
+      errors.phone = (e as Error).message;
+    }
+    setFieldErrors(errors);
+    setError("");
+    if (Object.keys(errors).length) {
+      setError("Please check the highlighted fields above.");
+      return;
+    }
+    setBusy(true);
+    try {
       await request("/api/v1/core/suppliers" + (supplier ? "/current" : ""), {
         method: supplier ? "PUT" : "POST",
         ...(org ? { org } : {}),
@@ -70,7 +98,7 @@ export function BusinessForm({
           category: category.trim(),
           city: city.trim(),
           contactEmail: email.trim() || null,
-          contactPhone: phone.trim() || null,
+          contactPhone: normalizedPhone,
           acceptInquiries: inquiries,
           serviceAreas: supplier?.serviceAreas || [],
         },
@@ -82,54 +110,156 @@ export function BusinessForm({
       setBusy(false);
     }
   }
+  const change =
+    (key: string, setter: (value: string) => void) => (value: string) => {
+      setter(value);
+      setFieldErrors((current) => ({ ...current, [key]: "" }));
+    };
   return (
-    <View style={{ gap: 16 }}>
-      <Text style={s.h2}>
-        {supplier ? "Business identity" : "Set up your business"}
-      </Text>
-      <Text style={s.body}>
-        Your business identity is shared across Events Circle. Business name,
-        category and city are required. Contact details are optional.
-      </Text>
-      <Field label="Business name" value={name} onChange={setName} />
-      <Field
-        label="Category · e.g. Event planner"
-        value={category}
-        onChange={setCategory}
-      />
-      <Field label="City" value={city} onChange={setCity} />
-      <Field
-        label="Contact email"
-        value={email}
-        onChange={setEmail}
-        keyboard="email-address"
-      />
-      <Field
-        label="Phone · international format, e.g. +961…"
-        value={phone}
-        onChange={setPhone}
-      />
-      <View style={s.row}>
-        <Text style={s.label}>Accept inquiries</Text>
-        <Switch
-          accessibilityLabel="Accept inquiries"
-          value={inquiries}
-          onValueChange={setInquiries}
+    <View style={{ gap: 22 }}>
+      <View
+        style={{
+          gap: 8,
+          backgroundColor: "#E6EBFF",
+          padding: 22,
+          borderRadius: 22,
+        }}
+      >
+        <Text style={s.h2}>
+          {supplier ? "Business identity" : "Set up your business"}
+        </Text>
+        <Text style={s.body}>
+          Add the essentials so people know who you are and how to reach you.
+          This identity is shared across Events Circle.
+        </Text>
+      </View>
+      <View
+        style={{
+          backgroundColor: "white",
+          borderRadius: 24,
+          padding: 22,
+          gap: 22,
+          borderWidth: 1,
+          borderColor: "#E1E5F0",
+        }}
+      >
+        <Text style={{ color: C.muted, fontSize: 13 }}>
+          Fields marked * are required.
+        </Text>
+        <SetupField
+          label="Business name"
+          required
+          value={name}
+          onChange={change("name", setName)}
+          error={fieldErrors.name}
+          placeholder="Your business or studio name"
+          maxLength={160}
         />
+        <SearchSelect
+          label="Category"
+          required
+          value={category}
+          options={businessCategories}
+          onSelect={change("category", setCategory)}
+          custom
+          error={fieldErrors.category}
+        />
+        <SetupField
+          label="City"
+          required
+          value={city}
+          onChange={change("city", setCity)}
+          error={fieldErrors.city}
+          placeholder="e.g. Beirut"
+        />
+        <View style={{ height: 1, backgroundColor: C.line }} />
+        <View style={{ gap: 5 }}>
+          <Text style={s.h2}>Contact details</Text>
+          <Text style={[s.body, { fontSize: 14 }]}>
+            Optional. You can choose what appears publicly in your profile
+            settings.
+          </Text>
+        </View>
+        <SetupField
+          label="Contact email"
+          value={email}
+          onChange={change("email", setEmail)}
+          error={fieldErrors.email}
+          keyboard="email-address"
+          placeholder="hello@yourbusiness.com"
+          maxLength={254}
+        />
+        <SearchSelect
+          label="Country code"
+          value={country}
+          options={countryOptions}
+          onSelect={(value) => {
+            setCountry(value as CountryCode);
+            setFieldErrors((current) => ({ ...current, phone: "" }));
+          }}
+        />
+        <SetupField
+          label="Phone number"
+          value={phone}
+          onChange={change("phone", setPhone)}
+          error={fieldErrors.phone}
+          keyboard="phone-pad"
+          placeholder={country === "LB" ? "01 234 567" : "Local phone number"}
+          maxLength={40}
+        />
+        <Text style={[s.body, { fontSize: 13, marginTop: -12 }]}>
+          Enter your local number. Spaces, brackets and dashes are fine. You can
+          also paste a full number beginning with +.
+        </Text>
+        <View style={{ height: 1, backgroundColor: C.line }} />
+        <View
+          style={{ flexDirection: "row", gap: 14, alignItems: "flex-start" }}
+        >
+          <View style={{ flex: 1, gap: 7 }}>
+            <Text style={s.label}>Accept inquiries</Text>
+            <Text style={[s.body, { fontSize: 14 }]}>
+              Let potential clients send your business questions about your
+              services or availability. Turning this off stops new inquiries; it
+              does not hide your profile.
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Accept inquiries"
+            accessibilityHint="Allow new client questions about services or availability"
+            value={inquiries}
+            onValueChange={setInquiries}
+            trackColor={{ false: "#CFD5E2", true: "#7353ED" }}
+          />
+        </View>
       </View>
       {!!error && (
         <Text accessibilityRole="alert" style={s.error}>
           {error}
         </Text>
       )}
-      <Button
-        label={busy ? "Saving…" : "Save business"}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Save business"
+        accessibilityState={{ disabled: busy }}
         disabled={busy}
         onPress={() => void save()}
-      />
+        style={{ opacity: busy ? 0.6 : 1 }}
+      >
+        <LinearGradient
+          colors={["#7939EE", "#285BEB"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ padding: 18, borderRadius: 18, alignItems: "center" }}
+        >
+          <Text style={[s.buttonText, { color: "white" }]}>
+            {busy ? "Saving…" : "Save business"}
+          </Text>
+        </LinearGradient>
+      </Pressable>
     </View>
   );
 }
+
 export function ProfileForm({
   data,
   org,

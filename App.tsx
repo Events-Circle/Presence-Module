@@ -285,11 +285,36 @@ function AppBody() {
     );
   if (!members.length)
     return (
-      <ScrollView contentContainerStyle={s.page}>
-        <Text style={s.h1}>Welcome to Presence</Text>
-        <BusinessForm onSaved={membership} />
-        <Button label="Sign out" secondary onPress={() => void logout()} />
-      </ScrollView>
+      <LinearGradient
+        colors={["#94AAFF", "#E6EBFF", "#F9FAFF"]}
+        style={{ flex: 1 }}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={[
+              s.page,
+              {
+                backgroundColor: "transparent",
+                width: "100%",
+                maxWidth: 680,
+                alignSelf: "center",
+                paddingTop: 32,
+                paddingBottom: 40,
+              },
+            ]}
+          >
+            <Text style={[s.h1, { fontSize: 32, lineHeight: 38 }]}>
+              Welcome to Presence
+            </Text>
+            <BusinessForm onSaved={membership} />
+            <Button label="Sign out" secondary onPress={() => void logout()} />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
     );
   const p = data?.profile;
   const supplier = data?.supplier;
