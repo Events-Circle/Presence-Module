@@ -73,3 +73,9 @@ Prepared skill copies are under `/root/.codex/skills/remote-skills/{heroui-nativ
 After the build-command correction, `pnpm check` passed: pinned contract verification, both TypeScript checks, build, and all 18 tests. The isolated development preview exported successfully for Android and iOS. No physical device or emulator was available, so native rendering, touch gestures, animation, and reduced-motion behavior still require device verification.
 
 The normal application also exported for Android, iOS, and web. Metro launched, and browser verification confirmed the existing welcome screen and navigation to the email signup form. Native React Native DevTools could not install in this Codespace because libatk-1.0.so.0 is absent; Metro and app loading continued successfully. No account was created during verification.
+
+## First screen adoption: welcome
+
+The welcome screen now uses native HeroUI buttons and a Reanimated title entrance through WelcomeUI.native.tsx. Its provider and gesture root are scoped to that screen; existing auth handlers are unchanged. Reduced-motion preferences disable the entrance/press animations. WelcomeUI.tsx retains a React Native web fallback because HeroUI Native is not used for web. The existing artwork, shared left alignment, and bottom action group are retained, with 56-point rounded buttons and larger labels.
+
+Verification: both TypeScript checks passed; Android and iOS development bundles returned HTTP 200; browser welcome rendering and email signup/login navigation passed. Native visual/press feedback remains for phone testing. The running Expo session uses EXPO_PUBLIC_UI_PREVIEW=0 to show the actual app.

@@ -1,8 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import {
-  AccessibilityInfo,
-  Animated,
-  Easing,
   Image,
   Pressable,
   ScrollView,
@@ -14,6 +11,7 @@ import {
 import Svg, { Path, Circle } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { Icon } from "./ui";
+import { WelcomeRoot, WelcomeEntrance, WelcomeButton } from "./WelcomeUI";
 
 export function WelcomeScreen({
   onEmail,
@@ -26,143 +24,94 @@ export function WelcomeScreen({
 }) {
   const { width } = useWindowDimensions();
   const titleSize = Math.min(42, (Math.min(width, 480) - 80) / 7.5);
-  const entrance = useRef(new Animated.Value(1)).current;
-  const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled()
-      .then((value) => {
-        if (mounted) setReduceMotion(value);
-      })
-      .catch(() => {
-        if (mounted) setReduceMotion(true);
-      });
-    const subscription = AccessibilityInfo.addEventListener(
-      "reduceMotionChanged",
-      setReduceMotion,
-    );
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
-  useEffect(() => {
-    if (reduceMotion !== false) {
-      entrance.setValue(1);
-      return;
-    }
-    entrance.setValue(0);
-    const animation = Animated.timing(entrance, {
-      toValue: 1,
-      duration: 450,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [reduceMotion, entrance]);
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={styles.scroll}
-      bounces={false}
-    >
-      <View style={styles.canvas}>
-        <View pointerEvents="none" style={styles.topArt}>
-          <Image
-            source={require("../assets/welcome-blue-folds.png")}
-            resizeMode="cover"
-            style={{ width: "100%", height: "100%" }}
-            accessible={false}
-          />
-          <LinearGradient
-            colors={["#D6E7EE00", "#D6E7EE"]}
-            style={styles.artFade}
-          />
-        </View>
-        <View style={styles.brand}>
-          <Svg width={38} height={38} viewBox="0 0 40 40" accessible={false}>
-            <Path
-              d="M11 4 H29 L38 20 L29 36 H11 L2 20 Z"
-              fill="none"
-              stroke="#111B29"
-              strokeWidth="2.5"
+    <WelcomeRoot>
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={styles.scroll}
+        bounces={false}
+      >
+        <View style={styles.canvas}>
+          <View pointerEvents="none" style={styles.topArt}>
+            <Image
+              source={require("../assets/welcome-blue-folds.png")}
+              resizeMode="cover"
+              style={{ width: "100%", height: "100%" }}
+              accessible={false}
             />
-            <Circle cx="20" cy="20" r="10" fill="#111B29" />
-          </Svg>
-          <Animated.View
-            style={{
-              alignSelf: "stretch",
-              opacity: entrance,
-              transform: [
-                {
-                  translateY: entrance.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [12, 0],
-                  }),
-                },
-              ],
-            }}
-          >
-            <Text
-              accessibilityRole="header"
-              numberOfLines={2}
-              adjustsFontSizeToFit
-              minimumFontScale={0.75}
-              style={[
-                styles.title,
-                { fontSize: titleSize, lineHeight: titleSize + 4 },
-              ]}
+            <LinearGradient
+              colors={["#D6E7EE00", "#D6E7EE"]}
+              style={styles.artFade}
+            />
+          </View>
+          <View style={styles.brand}>
+            <Svg width={38} height={38} viewBox="0 0 40 40" accessible={false}>
+              <Path
+                d="M11 4 H29 L38 20 L29 36 H11 L2 20 Z"
+                fill="none"
+                stroke="#111B29"
+                strokeWidth="2.5"
+              />
+              <Circle cx="20" cy="20" r="10" fill="#111B29" />
+            </Svg>
+            <WelcomeEntrance>
+              <Text
+                accessibilityRole="header"
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+                style={[
+                  styles.title,
+                  { fontSize: titleSize, lineHeight: titleSize + 4 },
+                ]}
+              >
+                {"Events Circle\nPresence."}
+              </Text>
+              <Text style={styles.description}>
+                Your work deserves to be seen.
+              </Text>
+            </WelcomeEntrance>
+          </View>
+          <View style={styles.actions}>
+            <Text style={styles.prompt}>Don’t have an account?</Text>
+            <WelcomeButton
+              accessibilityLabel="Sign up with email"
+              onPress={onEmail}
+              style={styles.email}
             >
-              {"Events Circle\nPresence."}
-            </Text>
-            <Text style={styles.description}>
-              Your work deserves to be seen.
-            </Text>
-          </Animated.View>
+              <Text style={styles.emailText}>Sign up with email</Text>
+              <Icon name="arrow-forward" size={18} color="#FFFFFF" />
+            </WelcomeButton>
+            <WelcomeButton
+              accessibilityLabel="Continue with Google, coming soon"
+              disabled
+              style={styles.google}
+            >
+              <View style={styles.googleLabel}>
+                <Icon name="logo-google" size={18} color="#333A48" />
+                <Text style={styles.socialText}>Continue with Google</Text>
+              </View>
+              <Text style={styles.unavailable}>Coming soon</Text>
+            </WelcomeButton>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Login"
+              onPress={onLogin}
+              style={styles.login}
+            >
+              <Text style={styles.loginText}>
+                Already a member? <Text style={styles.link}>Login</Text>
+              </Text>
+            </Pressable>
+            {!!error && (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {error}
+              </Text>
+            )}
+          </View>
         </View>
-        <View style={styles.actions}>
-          <Text style={styles.prompt}>Don’t have an account?</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Sign up with email"
-            onPress={onEmail}
-            style={({ pressed }) => [styles.email, pressed && { opacity: 0.8 }]}
-          >
-            <Text style={styles.emailText}>Sign up with email</Text>
-            <Icon name="arrow-forward" size={18} color="#FFFFFF" />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Continue with Google, coming soon"
-            accessibilityState={{ disabled: true }}
-            disabled
-            style={styles.google}
-          >
-            <View style={styles.googleLabel}>
-              <Icon name="logo-google" size={18} color="#333A48" />
-              <Text style={styles.socialText}>Continue with Google</Text>
-            </View>
-            <Text style={styles.unavailable}>Coming soon</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Login"
-            onPress={onLogin}
-            style={styles.login}
-          >
-            <Text style={styles.loginText}>
-              Already a member? <Text style={styles.link}>Login</Text>
-            </Text>
-          </Pressable>
-          {!!error && (
-            <Text accessibilityRole="alert" style={styles.error}>
-              {error}
-            </Text>
-          )}
-        </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </WelcomeRoot>
   );
 }
 const styles = StyleSheet.create({
@@ -205,8 +154,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   description: {
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 15,
+    lineHeight: 22,
     color: "#3E5360",
     marginTop: 12,
     maxWidth: 330,
@@ -230,32 +179,32 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: 8,
-    minHeight: 50,
+    minHeight: 56,
     marginTop: 12,
     paddingHorizontal: 18,
     paddingVertical: 12,
-    borderRadius: 7,
+    borderRadius: 16,
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#BACCD7",
   },
   googleLabel: { flexDirection: "row", alignItems: "center", gap: 9 },
-  socialText: { fontSize: 14, fontWeight: "500", color: "#333A48" },
+  socialText: { fontSize: 16, fontWeight: "600", color: "#333A48" },
   unavailable: { color: "#536674", fontSize: 11 },
   email: {
-    minHeight: 50,
+    minHeight: 56,
     backgroundColor: "#292739",
     borderColor: "#171626",
     borderWidth: 1,
-    borderRadius: 7,
+    borderRadius: 16,
     paddingHorizontal: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  emailText: { fontSize: 14, fontWeight: "500", color: "#FFFFFF" },
+  emailText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
   login: { minHeight: 48, justifyContent: "center", alignItems: "flex-start" },
   loginText: { fontSize: 13, color: "#34414B" },
   link: { color: "#365CBD", fontWeight: "600" },
-  error: { color: "#9D2838", fontSize: 13, textAlign: "center" },
+  error: { color: "#9D2838", fontSize: 13, textAlign: "left" },
 });
