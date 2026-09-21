@@ -9,6 +9,8 @@ export default {
     version: "0.2.0",
     orientation: "portrait",
     userInterfaceStyle: "light",
+    backgroundColor: "#F5F8FE",
+    splash: { backgroundColor: "#F5F8FE", resizeMode: "contain" },
     scheme: "events-circle-presence",
     ios: {
       supportsTablet: true,

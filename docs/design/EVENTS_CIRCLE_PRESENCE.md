@@ -41,13 +41,13 @@ Three columns are rotated -10 degrees inside a clipped decorative region. Left t
 
 The lower gradient matches the page background. The entire collage is pointerEvents=none, aria-hidden, accessibilityElementsHidden and importantForAccessibility=no-hide-descendants. Screen readers encounter only the actual title and actions.
 
-The content width is bounded to 480 points. The decorative area uses 41% of available safe height up to 340 points; below 650 points of available height or above 1.25 system font scale it reduces to 28%, bounded to 120–210 points. Title, subtitle and actions share 24-point gutters. A flexible 24–48-point gap separates copy and actions; taller screens may retain a small trailing breathing space rather than a very large gap. Content scrolls if it exceeds the safe viewport. No fixed-height text containers or absolute-positioned actions.
+The content width is bounded to 480 points. The decorative area uses 46% of available safe height up to 420 points; below 650 points of available height or above 1.25 system font scale it reduces to 28%, bounded to 120–210 points. Title, subtitle and actions share 24-point gutters. A flexible 24–48-point gap separates copy and actions; taller screens may retain a small trailing breathing space rather than a very large gap. Content scrolls if it exceeds the safe viewport. No fixed-height text containers or absolute-positioned actions.
 
 ## Accessibility and behavior contracts
 
 - Preserve wording: “Events Circle Presence.”, “Your work deserves to be seen.”, “Don’t have an account?”, “Sign up with email”, “Continue with Google”, “Coming soon”, and “Already a member? Login”.
 - Email signup and login use existing callbacks and forms. Google remains present and disabled because no working provider exists; never pretend OAuth works.
-- No logo intro, artificial loading delay, haptics, sign-in transitions or backend changes.
+- The opening brand intro below precedes the landing. No artificial authentication delay, haptics, sign-in transitions or backend changes.
 - Respect live reduced-motion changes and default to static until preference is known. Reduced motion disables movement and scale without hiding content.
 - This screen has no text inputs. Existing AuthForm keyboard/focus/validation behavior remains unchanged; future input work must follow UI_UX_REVIEW_STANDARD.md.
 - Test narrow screens, 200% text, safe-area bottom spacing, orientation changes, image failure, background/foreground and both authentication destinations. Native screen reader behavior, runtime frame rate and device touch feedback require actual device verification.
@@ -80,3 +80,21 @@ Run the existing app, not the component playground, with EXPO_PUBLIC_UI_PREVIEW=
 - Only the approved blue artwork is available; original vector event illustrations keep cards meaningful while the texture loads or fails. No supplier identities or social proof are invented.
 - Official Expo/HeroUI skill sources were consulted, but the environment skill catalog does not list them as installed/discoverable; do not confuse working app dependencies with installed agent skills.
 - Sign-in transitions remain outside this change.
+
+## Opening brand intro
+
+The user-supplied `assets/brand/symbol.svg` (163 paths, 418x420) and `full-logo.svg` (147 paths, 1085x420) are authoritative. Their exact d/fill values are embedded in mobile/brand/artwork.ts for native rendering without a new SVG loader. The paths are traced shapes, not replacement circles or fonts. Original files are retained unchanged. Path-perimeter lengths were computed from the original curves, and outline start times follow each shape's angular position.
+
+BrandIntro.tsx draws individual thin outlines with strokeDashoffset, overlaps the fill from 700–950 ms, positions the symbol from 950–1250 ms, reveals Events at 80 ms per letter, then CIRCLE after an 80 ms gap. The final letter appears at 2210 ms, the full artwork holds until 2500 ms, and fades out at 2730 ms. Connected cursive paths use custom polygon boundaries at joins; the serif letters use their original separate paths. All wordmark space is reserved. The finished hold renders the complete unmasked original path set to avoid clipping seams.
+
+The two supplied SVGs have different traced symbol path sets. A short crossfade from the standalone symbol to the full-logo symbol at the end of positioning preserves the final artwork exactly. No new geometry, colors, lettering or black rectangular background is introduced. Width is capped at 560 points with 24-point phone margins, preserving the complete SVG aspect ratio.
+
+AppBody mounts immediately for existing session restoration/membership initialization, but its presentation waits for introDone. AuthScreen and WelcomeScreen consequently mount after the intro, so landing entrances do not run invisibly. Existing authorized/onboarding routing, session APIs and URL scheme are unchanged. Intro completion persists at module scope for this JS launch; normal rerenders, navigation and resume do not replay it. A JS reload in Expo Go is a fresh launch for testing.
+
+Reduced motion shows the complete wordmark with a 230 ms fade. Backgrounding finishes/skips the decorative sequence. A 3.8-second watchdog and React error boundary release the app if animation preference resolution, callbacks or rendering fail. Unmount cancels work and removes subscriptions. All frame changes use shared values, SVG animated props or transforms; React state is not updated per frame.
+
+The configured native splash and app background are #F5F8FE, matching the in-app intro. The custom sequence runs in React Native after native splash dismissal. Expo Go cannot establish release splash behavior: rebuild the native app to apply app.config.ts and verify Android/iOS cold starts, screen readers, frame pacing, restored sessions and platform deep links on a device. No native dependency changes were needed.
+
+Verification: both TypeScript projects and 18 project tests passed. Generated paths/colors were compared against both SVGs (163/147 exact matches). Browser inspection used normal, slowed, and held diagnostic frames to inspect outlines, cursive reveals and full composition; only normal timing remains in code. Reduced-motion completion and existing Login/signup navigation were checked. No real account credentials were submitted, and no native device run or reliable frame-rate recording was available.
+
+Public Android and iOS Expo manifests and current bundles returned HTTP 200 after normal timing was restored.
