@@ -17,6 +17,7 @@ import { Icon } from "./ui";
 type Props = {
   register: boolean;
   busy: boolean;
+  initializing?: boolean;
   error: string;
   name: string;
   email: string;
@@ -51,7 +52,11 @@ export function AuthForm(p: Props) {
   const [visible, setVisible] = useState(false);
   const [focused, setFocused] = useState("");
   const disabled =
-    p.busy || !p.email.trim() || !p.password || (p.register && !p.name.trim());
+    p.busy ||
+    p.initializing ||
+    !p.email.trim() ||
+    !p.password ||
+    (p.register && !p.name.trim());
   const field = (
     label: string,
     value: string,
@@ -195,7 +200,12 @@ export function AuthForm(p: Props) {
                 Use 12–128 characters for your password. Spaces are allowed.
               </Text>
             )}
-            {disabled && !p.busy && (
+            {p.initializing && (
+              <Text accessibilityLiveRegion="polite" style={s.note}>
+                Checking your saved session…
+              </Text>
+            )}
+            {disabled && !p.busy && !p.initializing && (
               <Text style={s.note}>Complete the fields above to continue.</Text>
             )}
             {!!p.error && (

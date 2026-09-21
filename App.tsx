@@ -308,15 +308,10 @@ function AppBody({ introDone }: { introDone: boolean }) {
     });
   }
   // Prepare the destination underneath the intro instead of mounting it afterward.
-  if (!ready)
-    return (
-      <View style={[s.root, { justifyContent: "center" }]}>
-        <ActivityIndicator size="large" color={C.blue} />
-      </View>
-    );
-  if (!signed)
+  if (!ready || !signed)
     return (
       <AuthScreen
+        sessionReady={ready}
         entranceEnabled={introDone}
         initialError={error}
         onSigned={async () => {
@@ -1515,10 +1510,12 @@ function AppBody({ introDone }: { introDone: boolean }) {
   );
 }
 function AuthScreen({
+  sessionReady = true,
   entranceEnabled = true,
   onSigned,
   initialError,
 }: {
+  sessionReady?: boolean;
   entranceEnabled?: boolean;
   onSigned: () => Promise<void>;
   initialError: string;
@@ -1530,7 +1527,9 @@ function AuthScreen({
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(initialError);
+  useEffect(() => setError(initialError), [initialError]);
   async function submit() {
+    if (!sessionReady || busy) return;
     setBusy(true);
     setError("");
     try {
@@ -1574,6 +1573,7 @@ function AuthScreen({
     <AuthForm
       register={register}
       busy={busy}
+      initializing={!sessionReady}
       error={error}
       name={name}
       email={email}

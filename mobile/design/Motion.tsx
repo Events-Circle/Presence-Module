@@ -35,7 +35,8 @@ export function PresenceMotion({
   enabled = true,
 }: PropsWithChildren<{ focused?: boolean; enabled?: boolean }>) {
   const [reduced, setReduced] = useState(true);
-  const [ready, setReady] = useState(false);
+  // Render immediately with a safe static preference; native preference lookup is never a visibility gate.
+  const [ready, setReady] = useState(true);
   const [active, setActive] = useState(AppState.currentState === "active");
   useEffect(() => {
     let mounted = true;
@@ -97,7 +98,7 @@ export function PresenceEntrance({
 }>) {
   const { reduced, ready, active } = usePresenceMotion();
   const played = useRef(false);
-  const progress = useSharedValue(0);
+  const progress = useSharedValue(1);
   useEffect(() => {
     if (!ready) return;
     if (reduced || !active) {
@@ -123,7 +124,7 @@ export function PresenceEntrance({
   useEffect(() => () => cancelAnimation(progress), [progress]);
   const animated = useAnimatedStyle(() => ({
     // Actions remain visible and pressable even during their short entrance.
-    opacity: order === 3 ? 0.35 + 0.65 * progress.get() : progress.get(),
+    opacity: 0.85 + 0.15 * progress.get(),
     transform: [
       { translateY: translate ? (1 - progress.get()) * P.motion.travel : 0 },
     ],
