@@ -15,14 +15,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { authorization, origin } from "./service";
-export const C = {
-  ink: "#102249",
-  muted: "#667797",
-  blue: "#235AFF",
-  line: "#E2E9F5",
-  bg: "#F5F8FE",
-  green: "#13845B",
-};
+import { C } from "./design/tokens";
+export { C } from "./design/tokens";
 export function Icon({
   name,
   size = 21,
