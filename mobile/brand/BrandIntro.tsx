@@ -6,7 +6,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import Svg, { ClipPath, Defs, G, Mask, Path } from "react-native-svg";
+import Svg, { ClipPath, Defs, G, Path } from "react-native-svg";
 import Animated, {
   cancelAnimation,
   Easing,
@@ -24,16 +24,16 @@ import { presence as P } from "../design/tokens";
 const APath = Animated.createAnimatedComponent(Path),
   AG = Animated.createAnimatedComponent(G);
 export const INTRO = {
-  draw: 1050,
-  fillAt: 750,
-  fill: 300,
-  moveAt: 1000,
-  move: 400,
-  eventsAt: 1400,
-  letter: 135,
-  circleAt: 2300,
-  holdUntil: 3190,
-  end: 3430,
+  draw: 750,
+  fillAt: 550,
+  fill: 250,
+  moveAt: 700,
+  move: 300,
+  eventsAt: 1000,
+  letter: 110,
+  circleAt: 1800,
+  holdUntil: 2700,
+  end: 2900,
 };
 let completedThisLaunch = false;
 export const introAlreadyCompleted = () => completedThisLaunch;
@@ -54,7 +54,7 @@ function Dot({
   time: SharedValue<number>;
 }) {
   const props = useAnimatedProps(() => {
-    const draw = smooth((time.get() - item.start * 1.08) / 350),
+    const draw = smooth((time.get() - item.start * 0.7) / 295),
       fill = smooth((time.get() - INTRO.fillAt) / INTRO.fill);
     return {
       strokeDashoffset: item.length * (1 - draw),
@@ -131,28 +131,33 @@ function BrushTrace({
   at,
   duration,
   width,
+  color,
+  order,
+  count,
 }: {
   stroke: BrushStroke;
   time: SharedValue<number>;
   at: number;
   duration: number;
   width: number;
+  color: string;
+  order: number;
+  count: number;
 }) {
+  // Blend distance weighting with equal pen-lift time so short serifs cannot flash in one frame.
+  const offset = (stroke.offset + order / count) / 2;
+  const portion = (stroke.portion + 1 / count) / 2;
   const props = useAnimatedProps(() => {
     const p = clamp(
-      (time.get() - at - duration * stroke.offset) /
-        (duration * stroke.portion),
+      (time.get() - at - duration * offset) / (duration * portion),
     );
-    return {
-      strokeDashoffset: stroke.length * (1 - p),
-      opacity: p > 0 ? 1 : 0,
-    };
+    return { strokeDashoffset: stroke.length * (1 - p), opacity: clamp(p * 6) };
   });
   return (
     <APath
       d={stroke.d}
       fill="none"
-      stroke="white"
+      stroke={color}
       strokeWidth={width}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -161,66 +166,61 @@ function BrushTrace({
     />
   );
 }
-function Letter({
+function PaintedPath({
+  pathIndex,
   index,
   time,
-  children,
+  prefix,
 }: {
+  pathIndex: number;
   index: number;
   time: SharedValue<number>;
-  children: React.ReactNode;
+  prefix: string;
 }) {
-  const id = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const brush = brushStrokes[index]!;
+  const source = fullPaths[pathIndex]!;
   const at =
     index < 6
       ? INTRO.eventsAt + index * INTRO.letter
-      : INTRO.circleAt + (index - 6) * 100;
-  const duration = index < 6 ? 210 : 180;
-  const brush = brushStrokes[index]!;
-  const props = useAnimatedProps(() => ({
-    opacity: time.get() < 2980 ? 1 : 0,
-  }));
+      : INTRO.circleAt + (index - 6) * 95;
+  const duration = index < 6 ? 240 : 280;
   return (
-    <>
-      <Defs>
-        <Mask
-          id={id}
-          maskUnits="userSpaceOnUse"
-          x={0}
-          y={0}
-          width={1085}
-          height={420}
-        >
-          {brush.strokes.map((stroke, i) => (
-            <BrushTrace
-              key={i}
-              stroke={stroke}
-              time={time}
-              at={at}
-              duration={duration}
-              width={brush.width}
-            />
-          ))}
-        </Mask>
-      </Defs>
-      <AG animatedProps={props} mask={`url(#${id})`}>
-        {children}
-      </AG>
-    </>
+    <G clipPath={`url(#${prefix}-source-${pathIndex})`}>
+      {brush.strokes.map((stroke, i) => (
+        <BrushTrace
+          key={i}
+          stroke={stroke}
+          time={time}
+          at={at}
+          duration={duration}
+          width={brush.width}
+          color={source.fill}
+          order={i}
+          count={brush.strokes.length}
+        />
+      ))}
+    </G>
   );
 }
 function Composition({ time }: { time: SharedValue<number> }) {
+  const prefix = "brand" + useId().replace(/[^a-zA-Z0-9]/g, "");
   const dots = useAnimatedProps(() => ({
-    opacity: time.get() >= 2980 ? 0 : clamp((time.get() - 1250) / 150),
+    opacity: smooth((time.get() - 850) / 150),
   }));
+  // Add the exact finished contours gently; never switch off the painted layers.
   const complete = useAnimatedProps(() => ({
-    opacity: time.get() >= 2980 ? 1 : 0,
+    opacity: smooth((time.get() - 2560) / 100),
   }));
   return (
     <>
       <Defs>
+        {fullPaths.slice(0, 10).map((p, i) => (
+          <ClipPath id={`${prefix}-source-${i}`} key={i}>
+            <Path d={p.d} />
+          </ClipPath>
+        ))}
         {borders.slice(0, -1).map((left, i) => (
-          <ClipPath id={`events-letter-${i}`} key={i}>
+          <ClipPath id={`${prefix}-letter-${i}`} key={i}>
             <Path d={polygon(left, borders[i + 1]!)} />
           </ClipPath>
         ))}
@@ -231,28 +231,31 @@ function Composition({ time }: { time: SharedValue<number> }) {
         ))}
       </AG>
       {[0, 1, 2, 3, 4].map((i) => (
-        <Letter key={i} index={i} time={time}>
-          <G clipPath={`url(#events-letter-${i})`}>
-            <Path {...fullPaths[1]!} />
-          </G>
-          {i === 4 && (
-            <>
-              <Path {...fullPaths[8]!} />
-              <Path {...fullPaths[2]!} />
-            </>
-          )}
-        </Letter>
+        <G key={i} clipPath={`url(#${prefix}-letter-${i})`}>
+          <PaintedPath pathIndex={1} index={i} time={time} prefix={prefix} />
+        </G>
       ))}
-      <Letter index={5} time={time}>
-        <Path {...fullPaths[9]!} />
-      </Letter>
-      {[4, 7, 0, 5, 6, 3].map((path, i) => (
-        <Letter key={path} index={i + 6} time={time}>
-          <Path {...fullPaths[path]!} />
-        </Letter>
+      {[8, 2].map((i) => (
+        <PaintedPath
+          key={i}
+          pathIndex={i}
+          index={4}
+          time={time}
+          prefix={prefix}
+        />
+      ))}
+      <PaintedPath pathIndex={9} index={5} time={time} prefix={prefix} />
+      {[4, 7, 0, 5, 6, 3].map((p, i) => (
+        <PaintedPath
+          key={p}
+          pathIndex={p}
+          index={i + 6}
+          time={time}
+          prefix={prefix}
+        />
       ))}
       <AG animatedProps={complete}>
-        {fullPaths.map((p, i) => (
+        {fullPaths.slice(0, 10).map((p, i) => (
           <Path key={i} {...p} />
         ))}
       </AG>
@@ -334,7 +337,7 @@ function IntroArtwork({ onComplete }: { onComplete: () => void }) {
         { translateY: 0 },
         { scale: startScale + (scale - startScale) * p },
       ],
-      opacity: 1 - clamp((time.get() - 1250) / 150),
+      opacity: 1 - clamp((time.get() - 850) / 150),
     };
   });
   const fade = useAnimatedStyle(() => ({
