@@ -32,7 +32,8 @@ export const usePresenceMotion = () => useContext(MotionContext);
 export function PresenceMotion({
   children,
   focused = true,
-}: PropsWithChildren<{ focused?: boolean }>) {
+  enabled = true,
+}: PropsWithChildren<{ focused?: boolean; enabled?: boolean }>) {
   const [reduced, setReduced] = useState(true);
   const [ready, setReady] = useState(false);
   const [active, setActive] = useState(AppState.currentState === "active");
@@ -74,7 +75,11 @@ export function PresenceMotion({
   }, []);
   return (
     <MotionContext.Provider
-      value={{ reduced, ready, active: active && focused }}
+      value={{
+        reduced,
+        ready: ready && enabled,
+        active: active && focused && enabled,
+      }}
     >
       {children}
     </MotionContext.Provider>
@@ -92,7 +97,7 @@ export function PresenceEntrance({
 }>) {
   const { reduced, ready, active } = usePresenceMotion();
   const played = useRef(false);
-  const progress = useSharedValue(1);
+  const progress = useSharedValue(0);
   useEffect(() => {
     if (!ready) return;
     if (reduced || !active) {

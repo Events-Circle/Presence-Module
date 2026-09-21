@@ -1,4 +1,4 @@
-import {BrandIntro, introAlreadyCompleted} from "./mobile/brand/BrandIntro";
+import { BrandIntro, introAlreadyCompleted } from "./mobile/brand/BrandIntro";
 import { ContentDetails } from "./mobile/ContentDetails";
 import { SearchSelect } from "./mobile/business-fields";
 import { EditorSaveProvider, FormFocusProvider } from "./mobile/EditorUX";
@@ -75,7 +75,7 @@ type Editor =
       item?: Content;
       initialType?: NonNullable<Content["type"]>;
     };
-function AppBody({introDone}: {introDone: boolean}) {
+function AppBody({ introDone }: { introDone: boolean }) {
   const [ready, setReady] = useState(false);
   const [signed, setSigned] = useState(false);
   const [members, setMembers] = useState<Models["MembershipDto"][]>([]);
@@ -307,7 +307,7 @@ function AppBody({introDone}: {introDone: boolean}) {
       await refresh();
     });
   }
-  if (!introDone) return null;
+  // Prepare the destination underneath the intro instead of mounting it afterward.
   if (!ready)
     return (
       <View style={[s.root, { justifyContent: "center" }]}>
@@ -317,6 +317,7 @@ function AppBody({introDone}: {introDone: boolean}) {
   if (!signed)
     return (
       <AuthScreen
+        entranceEnabled={introDone}
         initialError={error}
         onSigned={async () => {
           await membership();
@@ -1514,9 +1515,11 @@ function AppBody({introDone}: {introDone: boolean}) {
   );
 }
 function AuthScreen({
+  entranceEnabled = true,
   onSigned,
   initialError,
 }: {
+  entranceEnabled?: boolean;
   onSigned: () => Promise<void>;
   initialError: string;
 }) {
@@ -1555,6 +1558,7 @@ function AuthScreen({
   if (welcome)
     return (
       <WelcomeScreen
+        entranceEnabled={entranceEnabled}
         error={error}
         onEmail={() => {
           setRegister(true);
@@ -1590,7 +1594,12 @@ export default function App() {
   const [introDone, setIntroDone] = useState(introAlreadyCompleted);
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={s.root}>
+      <SafeAreaView
+        style={s.root}
+        pointerEvents={introDone ? "auto" : "none"}
+        accessibilityElementsHidden={!introDone}
+        importantForAccessibility={introDone ? "auto" : "no-hide-descendants"}
+      >
         <AppBody introDone={introDone} />
       </SafeAreaView>
       {!introDone && <BrandIntro onComplete={() => setIntroDone(true)} />}

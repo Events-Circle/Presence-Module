@@ -14,10 +14,12 @@ import { PresenceMotion, PresenceEntrance } from "./design/Motion";
 import { PresenceCollage } from "./design/PresenceCollage";
 import { presence as P } from "./design/tokens";
 export function WelcomeScreen({
+  entranceEnabled = true,
   onEmail,
   onLogin,
   error,
 }: {
+  entranceEnabled?: boolean;
   onEmail: () => void;
   onLogin: () => void;
   error: string;
@@ -38,7 +40,7 @@ export function WelcomeScreen({
     ? Math.max(120, Math.min(210, layout.height * 0.28))
     : Math.min(420, layout.height * 0.46);
   return (
-    <PresenceMotion>
+    <PresenceMotion enabled={entranceEnabled}>
       <WelcomeRoot>
         <View
           style={s.root}
@@ -64,12 +66,7 @@ export function WelcomeScreen({
               <View style={s.brand}>
                 <PresenceEntrance order={1}>
                   <View style={s.brandMark}>
-                    <Svg
-                      width={30}
-                      height={30}
-                      viewBox="0 0 40 40"
-
-                    >
+                    <Svg width={30} height={30} viewBox="0 0 40 40">
                       <Path
                         d="M11 4 H29 L38 20 L29 36 H11 L2 20 Z"
                         fill="none"
