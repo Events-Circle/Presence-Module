@@ -25,7 +25,7 @@ export function WelcomeScreen({
   error: string;
 }) {
   const { height, width } = useWindowDimensions();
-  const titleSize = Math.min(34, (Math.min(width, 480) - 80) / 9);
+  const titleSize = Math.min(42, (Math.min(width, 480) - 80) / 7.5);
   const entrance = useRef(new Animated.Value(1)).current;
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   useEffect(() => {
@@ -134,6 +134,19 @@ export function WelcomeScreen({
           </Pressable>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="Continue with Google, coming soon"
+            accessibilityState={{ disabled: true }}
+            disabled
+            style={styles.google}
+          >
+            <View style={styles.googleLabel}>
+              <Icon name="logo-google" size={18} color="#333A48" />
+              <Text style={styles.socialText}>Continue with Google</Text>
+            </View>
+            <Text style={styles.unavailable}>Coming soon</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Login"
             onPress={onLogin}
             style={styles.login}
@@ -208,29 +221,27 @@ const styles = StyleSheet.create({
   prompt: {
     fontSize: 13,
     color: "#28343E",
-    textAlign: "center",
+    textAlign: "left",
     marginBottom: 14,
   },
-  socialRow: { flexDirection: "row", gap: 12 },
-  social: {
-    flex: 1,
+  google: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 9,
-    minHeight: 46,
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+    minHeight: 50,
+    marginTop: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     borderRadius: 7,
     backgroundColor: "#F8FAFC",
-    borderBottomWidth: 2,
+    borderWidth: 1,
     borderColor: "#BACCD7",
   },
-  socialText: { fontSize: 13, color: "#333A48" },
-  unavailable: {
-    color: "#536674",
-    fontSize: 10,
-    textAlign: "center",
-    marginVertical: 8,
-  },
+  googleLabel: { flexDirection: "row", alignItems: "center", gap: 9 },
+  socialText: { fontSize: 14, fontWeight: "500", color: "#333A48" },
+  unavailable: { color: "#536674", fontSize: 11 },
   email: {
     minHeight: 50,
     backgroundColor: "#292739",
@@ -243,7 +254,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   emailText: { fontSize: 14, fontWeight: "500", color: "#FFFFFF" },
-  login: { minHeight: 48, justifyContent: "center", alignItems: "center" },
+  login: { minHeight: 48, justifyContent: "center", alignItems: "flex-start" },
   loginText: { fontSize: 13, color: "#34414B" },
   link: { color: "#365CBD", fontWeight: "600" },
   error: { color: "#9D2838", fontSize: 13, textAlign: "center" },
