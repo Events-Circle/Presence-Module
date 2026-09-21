@@ -9,7 +9,13 @@ import {
 } from "./mobile/ProfileSections";
 import { CategoryDetailsForm } from "./mobile/CategoryDetails";
 import { ProfilePreview } from "./mobile/ProfilePreview";
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -105,6 +111,16 @@ function AppBody() {
     accept: () => void;
   } | null>(null);
   const generation = useRef(0);
+  // A distinct scope also invalidates callbacks when switching A → B → A.
+  const scope = useMemo(() => ({ org, signed }), [org, signed]);
+  const activeScope = useRef<typeof scope | null>(scope);
+  useLayoutEffect(() => {
+    activeScope.current = scope;
+    return () => {
+      activeScope.current = null;
+    };
+  }, [scope]);
+  const isCurrentScope = () => activeScope.current === scope;
   function closeEditor() {
     if (editorState.busy) return;
     if (
@@ -127,6 +143,7 @@ function AppBody() {
   const role = members.find((m) => m.organizationId === org)?.role;
   const edit = role === "OWNER" || role === "EDITOR";
   async function reset() {
+    activeScope.current = null;
     generation.current++;
     setSigned(false);
     setOrg("");
@@ -139,6 +156,7 @@ function AppBody() {
     setNotice("");
     setConfirmation(null);
     setLoading(false);
+    setBusy(false);
     setTab("Overview");
   }
   async function membership() {
@@ -167,21 +185,21 @@ function AppBody() {
     })();
   }, []);
   async function refresh() {
-    if (!org) return;
+    if (!org || !isCurrentScope()) return;
     const run = ++generation.current;
     setLoading(true);
     setError("");
     try {
       const value = await loadSnapshot(org);
-      if (run === generation.current) setData(value);
+      if (isCurrentScope() && run === generation.current) setData(value);
     } catch (e) {
-      if (run !== generation.current) return;
+      if (!isCurrentScope() || run !== generation.current) return;
       if (e instanceof HttpError && e.status === 401) {
         await reset();
       }
       setError(explain(e));
     } finally {
-      if (run === generation.current) setLoading(false);
+      if (isCurrentScope() && run === generation.current) setLoading(false);
     }
   }
   useEffect(() => {
@@ -190,28 +208,32 @@ function AppBody() {
     setShare(null);
     setPublicData(null);
     setFilter("ALL");
+    setBusy(false);
     if (org) void refresh();
     return () => {
       generation.current++;
     };
-  }, [org]);
+  }, [scope]);
   async function run(action: () => Promise<void>) {
+    if (!isCurrentScope()) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
       await action();
     } catch (e) {
+      if (!isCurrentScope()) return;
       setError(explain(e));
       if (e instanceof HttpError && e.status === 401) {
         await reset();
         setError("Please sign in again.");
       }
     } finally {
-      setBusy(false);
+      if (isCurrentScope()) setBusy(false);
     }
   }
   async function saved() {
+    if (!isCurrentScope()) return;
     setNotice("Changes saved.");
     setEditor(null);
     await refresh();
@@ -237,14 +259,13 @@ function AppBody() {
       return;
     }
     try {
-      setPublicData(
-        await request<Models["PublicPresenceDto"]>(
-          `/api/v1/presence/public/${data.profile.slug}`,
-          { public: true },
-        ),
+      const value = await request<Models["PublicPresenceDto"]>(
+        `/api/v1/presence/public/${data.profile.slug}`,
+        { public: true },
       );
+      if (isCurrentScope()) setPublicData(value);
     } catch (e) {
-      setModalError(explain(e));
+      if (isCurrentScope()) setModalError(explain(e));
     }
   }
   async function showShare() {
@@ -260,8 +281,9 @@ function AppBody() {
       );
       if (new URL(value.url).protocol !== "https:")
         throw new Error("Invalid share URL");
-      setShare(value);
+      if (isCurrentScope()) setShare(value);
     } catch {
+      if (!isCurrentScope()) return;
       setModalError(
         "Public website sharing is not available yet. Your profile must be published and the public website configured.",
       );
@@ -1160,6 +1182,7 @@ function AppBody() {
                   key={m.organizationId}
                   label={`${m.organization.name}${m.organizationId === org ? " · Current" : ""}`}
                   secondary={m.organizationId !== org}
+                  disabled={busy || editorState.busy}
                   onPress={() => setOrg(m.organizationId)}
                 />
               ))}

@@ -198,3 +198,106 @@ test("validation/conflict responses preserve backend details; writes are sent on
   assert.equal(result.error.code, "PRESENCE_NOT_READY");
   assert.equal(calls, 1);
 });
+
+for (const method of ["login", "register"]) {
+  test(`${method} times out, ignores late tokens, and releases the session queue`, async () => {
+    const store = memorySessionStore();
+    let finish;
+    let signal;
+    let calls = 0;
+    const session = new AuthSession(
+      {
+        origin,
+        requestTimeoutMs: 25,
+        fetch: async (request) => {
+          calls++;
+          if (calls > 1) return json(tokens(2));
+          signal = request.signal;
+          return new Promise((resolve) => {
+            finish = resolve;
+          });
+        },
+      },
+      store,
+    );
+    const input = {
+      email: "qa@example.test",
+      password: "testing-password",
+      displayName: "QA",
+    };
+    await assert.rejects(session[method](input), /timed out/);
+    assert.equal(signal.aborted, true);
+    assert.equal(await store.read(), null);
+    await session.login(input);
+    finish(json(tokens(1)));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(await store.read(), tokens(2));
+    assert.equal(calls, 2);
+  });
+}
+test("refresh timeout releases queued logout without replaying or restoring late credentials", async () => {
+  const store = memorySessionStore();
+  await store.write(tokens());
+  let finish;
+  let calls = 0;
+  const session = new AuthSession(
+    {
+      origin,
+      requestTimeoutMs: 25,
+      fetch: async () => {
+        calls++;
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    },
+    store,
+  );
+  const refresh = assert.rejects(session.refresh(), /timed out/);
+  await Promise.all([refresh, session.logout()]);
+  assert.equal(await store.read(), null);
+  finish(json(tokens(2)));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(await store.read(), null);
+  await assert.rejects(session.refresh(), /Sign-in required/);
+  assert.equal(calls, 1);
+});
+test("logout clears credentials before a stalled server request and eventually settles", async () => {
+  const store = memorySessionStore();
+  await store.write(tokens());
+  let signal;
+  const session = new AuthSession(
+    {
+      origin,
+      requestTimeoutMs: 25,
+      fetch: async (request) => {
+        signal = request.signal;
+        assert.equal(await store.read(), null);
+        return new Promise(() => {});
+      },
+    },
+    store,
+  );
+  await assert.rejects(session.logout(), /timed out/);
+  assert.equal(signal.aborted, true);
+  assert.equal(await store.read(), null);
+});
+test("authentication deadline includes stalled response bodies", async () => {
+  const store = memorySessionStore();
+  const session = new AuthSession(
+    {
+      origin,
+      requestTimeoutMs: 25,
+      fetch: async () =>
+        new Response(new ReadableStream(), {
+          headers: { "Content-Type": "application/json" },
+        }),
+    },
+    store,
+  );
+  await assert.rejects(
+    session.login({ email: "qa@example.test", password: "testing-password" }),
+    /timed out/,
+  );
+  assert.equal(await store.read(), null);
+});
