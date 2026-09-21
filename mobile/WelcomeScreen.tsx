@@ -24,7 +24,7 @@ export function WelcomeScreen({
   onLogin: () => void;
   error: string;
 }) {
-  const { height, width } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const titleSize = Math.min(42, (Math.min(width, 480) - 80) / 7.5);
   const entrance = useRef(new Animated.Value(1)).current;
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
@@ -67,7 +67,7 @@ export function WelcomeScreen({
       contentContainerStyle={styles.scroll}
       bounces={false}
     >
-      <View style={[styles.canvas, { minHeight: Math.max(700, height - 60) }]}>
+      <View style={styles.canvas}>
         <View pointerEvents="none" style={styles.topArt}>
           <Image
             source={require("../assets/welcome-blue-folds.png")}
@@ -169,6 +169,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#D6E7EE" },
   scroll: { flexGrow: 1, alignItems: "center" },
   canvas: {
+    flexGrow: 1,
     width: "100%",
     maxWidth: 480,
     overflow: "hidden",
@@ -191,7 +192,7 @@ const styles = StyleSheet.create({
   },
   brand: {
     marginTop: 310,
-    paddingHorizontal: 40,
+    paddingHorizontal: 24,
     zIndex: 1,
     alignItems: "flex-start",
   },
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
     maxWidth: 330,
   },
   actions: {
-    marginTop: 0,
+    marginTop: "auto",
     paddingHorizontal: 24,
     paddingTop: 32,
     paddingBottom: 12,
