@@ -44,6 +44,12 @@ Create an account, set up a business, then complete the Presence profile. New ac
 
 Run `eas build --platform android --profile preview` using the existing EAS-managed signing key. EAS supplies a downloadable APK when the build passes. Each SDK upgrade requires a new native build; an already uploaded build retains its original SDK. The installed APK runs against Railway without a Metro server. iOS signing/device testing follows once the Apple Developer account is ready.
 
+## Content management improvements
+
+Collections support search, draft/published filters, archived items and sorting. Portfolio projects have optional date and location fields. Listings have their own service areas and availability notes. Image editing supports order, cover selection, captions and undo for the last removal. Saved-content details are available to read-only team members too.
+
+See [Batch 3 implementation and verification](docs/BATCH_3_CONTENT_MANAGEMENT.md).
+
 ## Verification
 
 ```sh

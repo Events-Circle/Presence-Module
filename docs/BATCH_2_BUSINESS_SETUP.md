@@ -25,4 +25,4 @@ Requires Core commit d4503c25830a345c28d91ccb29db7b0906d1181f and migration 2026
 
 ## Release status
 
-Core changes are published on main. The existing staging API is being updated before the dependent frontend testing preview. Public pages and public launch remain deferred.
+Core and frontend changes are published on main. The existing staging API was updated and the private draft workflow verified live before the Batch 2 Expo preview was refreshed. Public pages and public launch remain deferred.

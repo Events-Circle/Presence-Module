@@ -1,3 +1,5 @@
+import { ContentDetails } from "./mobile/ContentDetails";
+import { SearchSelect } from "./mobile/business-fields";
 import { EditorSaveProvider, FormFocusProvider } from "./mobile/EditorUX";
 import { ListingDetails } from "./mobile/ListingPricing";
 import {
@@ -57,6 +59,7 @@ import { readinessLabel } from "./src/formatting";
 import { AuthForm } from "./mobile/AuthForm";
 type Tab = "Overview" | "Portfolio" | "Listings" | "Profile";
 type Editor =
+  | { kind: "contentPreview"; collection: Collection; item: Content }
   | { kind: "business" | "preview" | "share" | "details" }
   | { kind: "profile"; section?: ProfileSection }
   | {
@@ -82,6 +85,16 @@ function AppBody() {
     Models["PublicPresenceDto"] | null
   >(null);
   const [modalError, setModalError] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ACTIVE");
+  const [sort, setSort] = useState("RECENT");
+  useEffect(() => {
+    setQuery("");
+    setStatusFilter("ACTIVE");
+    setSort("RECENT");
+    setFiltersOpen(false);
+  }, [tab, gallery, org]);
   const [filter, setFilter] = useState<string>("ALL");
   const [notice, setNotice] = useState("");
   const [editorState, setEditorState] = useState({ dirty: false, busy: false });
@@ -340,11 +353,35 @@ function AppBody() {
   }
   function contentCards(collection: Collection) {
     const items = data?.content[collection] || [];
-    const list = items.filter((x) =>
-      filter === "ARCHIVED"
-        ? x.status === "ARCHIVED"
-        : x.status !== "ARCHIVED" && (filter === "ALL" || x.type === filter),
-    );
+    const search = query.trim().toLocaleLowerCase();
+    const list = items
+      .filter((x) => {
+        const matchesStatus =
+          filter === "ARCHIVED"
+            ? x.status === "ARCHIVED"
+            : x.status !== "ARCHIVED" &&
+              (statusFilter === "ACTIVE" || x.status === statusFilter);
+        return (
+          matchesStatus &&
+          (filter === "ALL" || filter === "ARCHIVED" || x.type === filter) &&
+          (!search ||
+            [x.title, x.summary, x.description, ...(x.serviceAreas || [])].some(
+              (value) => value?.toLocaleLowerCase().includes(search),
+            ))
+        );
+      })
+      .sort((a, b) =>
+        sort === "TITLE"
+          ? a.title.localeCompare(b.title)
+          : (Date.parse(b.updatedAt || "") || 0) -
+            (Date.parse(a.updatedAt || "") || 0),
+      );
+    const narrowed = !!search || filter !== "ALL" || statusFilter !== "ACTIVE";
+    function clearFilters() {
+      setQuery("");
+      setFilter("ALL");
+      setStatusFilter("ACTIVE");
+    }
     return (
       <>
         <View style={s.row}>
@@ -398,6 +435,58 @@ function AppBody() {
             />
           ))}
         </ScrollView>
+        <Card>
+          <Field
+            label="Search content"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search titles, descriptions or areas"
+          />
+          <Button
+            label={filtersOpen ? "Hide filters & sort" : "Filters & sort"}
+            secondary
+            onPress={() => setFiltersOpen(!filtersOpen)}
+          />
+          {filtersOpen && (
+            <View style={{ gap: 12 }}>
+              {filter !== "ARCHIVED" && (
+                <SearchSelect
+                  label="Content status"
+                  value={statusFilter}
+                  options={[
+                    { value: "ACTIVE", label: "Drafts & published" },
+                    { value: "DRAFT", label: "Drafts" },
+                    { value: "PUBLISHED", label: "Published" },
+                  ]}
+                  onSelect={setStatusFilter}
+                />
+              )}
+              <SearchSelect
+                label="Sort content"
+                value={sort}
+                onSelect={setSort}
+                options={[
+                  { value: "RECENT", label: "Recently updated" },
+                  { value: "TITLE", label: "Title A–Z" },
+                ]}
+              />
+            </View>
+          )}
+          {!filtersOpen &&
+            statusFilter !== "ACTIVE" &&
+            filter !== "ARCHIVED" && (
+              <Text style={s.body}>
+                {statusFilter === "DRAFT" ? "Drafts only" : "Published only"}
+              </Text>
+            )}
+          <Text style={s.body} accessibilityLiveRegion="polite">
+            {list.length} {list.length === 1 ? "item" : "items"}
+            {narrowed ? " match your filters" : " in this collection"}
+          </Text>
+          {narrowed && (
+            <Button label="Clear filters" secondary onPress={clearFilters} />
+          )}
+        </Card>
         {!p && (
           <Card>
             <Text style={s.body}>Create your Presence profile first.</Text>
@@ -413,35 +502,53 @@ function AppBody() {
           <Card>
             <Icon name="images-outline" size={32} />
             <Text style={s.h2}>
-              {filter === "ARCHIVED"
-                ? "No archived items"
-                : filter !== "ALL"
-                  ? "No matching listings"
-                  : "A fresh start"}
+              {search || statusFilter !== "ACTIVE"
+                ? "No matching content"
+                : filter === "ARCHIVED"
+                  ? "No archived items"
+                  : filter !== "ALL"
+                    ? "No matching listings"
+                    : "A fresh start"}
             </Text>
             <Text style={s.body}>
-              {filter === "ARCHIVED"
-                ? "Items you archive will appear here. You can restore them as drafts."
-                : !edit
-                  ? "An owner or editor can add content for this business."
-                  : !p
-                    ? "Set up your profile to start adding content."
-                    : filter !== "ALL"
-                      ? "Choose All to see your other listings, or add a listing of this type."
-                      : "Add your first item when you’re ready. It will be saved as a draft."}
+              {search || statusFilter !== "ACTIVE"
+                ? "Try another search or clear your filters to see more content."
+                : filter === "ARCHIVED"
+                  ? "Items you archive will appear here. You can restore them as drafts."
+                  : !edit
+                    ? "An owner or editor can add content for this business."
+                    : !p
+                      ? "Set up your profile to start adding content."
+                      : filter !== "ALL"
+                        ? "Choose All to see your other listings, or add a listing of this type."
+                        : "Add your first item when you’re ready. It will be saved as a draft."}
             </Text>
           </Card>
         )}
         {list.map((item) => (
           <Card key={item.id}>
-            <Photo
-              id={
-                item.media.find((m) => m.role === "COVER")?.mediaId ||
-                item.media[0]?.mediaId
-              }
-              org={org}
-              height={210}
-            />
+            {item.media.length > 0 ? (
+              <Photo
+                id={
+                  item.media.find((m) => m.role === "COVER")?.mediaId ||
+                  item.media[0]?.mediaId
+                }
+                org={org}
+                alt={
+                  item.media.find((m) => m.role === "COVER")?.altText ||
+                  item.media[0]?.altText ||
+                  item.title
+                }
+                height={210}
+              />
+            ) : (
+              <View
+                style={{ flexDirection: "row", gap: 8, alignItems: "center" }}
+              >
+                <Icon name="image-outline" size={20} color={C.muted} />
+                <Text style={s.body}>No cover image yet</Text>
+              </View>
+            )}
             <View style={s.row}>
               <Text style={[s.h2, { flex: 1 }]}>{item.title}</Text>
               <Tag
@@ -457,6 +564,13 @@ function AppBody() {
                 <ListingDetails item={item} compact />
               </>
             )}
+            <Button
+              label="View details"
+              secondary
+              onPress={() =>
+                setEditor({ kind: "contentPreview", collection, item })
+              }
+            />
             {edit && (
               <View style={s.grid}>
                 {item.status !== "ARCHIVED" && (
@@ -1135,22 +1249,24 @@ function AppBody() {
         >
           <View style={[s.row, { padding: 18 }]}>
             <Text style={[s.h2, { flex: 1 }]}>
-              {editor?.kind === "details"
-                ? "Category details"
-                : editor?.kind === "business"
-                  ? "Business details"
-                  : editor?.kind === "profile"
-                    ? profileSectionTitles[editor.section || "all"]
-                    : editor?.kind === "content"
-                      ? (editor.item ? "Edit " : "New ") +
-                        (editor.collection === "portfolio"
-                          ? "project"
-                          : editor.collection === "gallery"
-                            ? "gallery"
-                            : "listing")
-                      : editor?.kind === "share"
-                        ? "Share your page"
-                        : "Page preview"}
+              {editor?.kind === "contentPreview"
+                ? "Content details"
+                : editor?.kind === "details"
+                  ? "Category details"
+                  : editor?.kind === "business"
+                    ? "Business details"
+                    : editor?.kind === "profile"
+                      ? profileSectionTitles[editor.section || "all"]
+                      : editor?.kind === "content"
+                        ? (editor.item ? "Edit " : "New ") +
+                          (editor.collection === "portfolio"
+                            ? "project"
+                            : editor.collection === "gallery"
+                              ? "gallery"
+                              : "listing")
+                        : editor?.kind === "share"
+                          ? "Share your page"
+                          : "Page preview"}
             </Text>
             <Button
               label="Close"
@@ -1210,6 +1326,13 @@ function AppBody() {
                       org={org}
                       onSaved={saved}
                       onState={setEditorState}
+                    />
+                  )}
+                  {editor?.kind === "contentPreview" && (
+                    <ContentDetails
+                      item={editor.item}
+                      collection={editor.collection}
+                      org={org}
                     />
                   )}
                   {editor?.kind === "content" && (

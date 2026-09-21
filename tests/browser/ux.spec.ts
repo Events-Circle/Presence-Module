@@ -87,7 +87,16 @@ async function fixture(
       if (method === "PUT") Object.assign(supplier, body);
       data = supplier;
       if (state.failLoad) status = 500;
-    } else if (path.endsWith("/catalogs/categories"))
+    } else if (path.endsWith("/catalogs/locations"))
+      data = [
+        {
+          id: "location-beirut",
+          label: "Beirut",
+          active: true,
+          kind: "LOCATION",
+        },
+      ];
+    else if (path.endsWith("/catalogs/categories"))
       data = [
         {
           id: "category-events",
@@ -614,13 +623,22 @@ test("gallery images can be reordered and removed before saving", async ({
     await expect(
       page.getByLabel("Image description for accessibility"),
     ).toHaveCount(i + 1);
+    await page
+      .getByLabel("Image description for accessibility")
+      .nth(i)
+      .fill(`Garden scene ${i + 1}`);
   }
   await button(page, "Make cover").click();
   await button(page, "Remove").last().click();
   await button(page, "Save draft").click();
   await expect.poll(() => state.items.gallery?.length).toBe(1);
   expect(state.items.gallery![0].media).toEqual([
-    { mediaId: "image-2", role: "COVER", altText: "Gallery" },
+    {
+      mediaId: "image-2",
+      role: "COVER",
+      altText: "Garden scene 2",
+      caption: "",
+    },
   ]);
 });
 test("switching businesses clears old content and sends the selected organization", async ({
@@ -1299,6 +1317,7 @@ test("batch two creates a private profile without a page name and unlocks conten
     .getByLabel("About your business", { exact: true })
     .fill("Our private introduction");
   await button(page, "Save profile").click();
+  await expect(button(page, "Close")).toHaveCount(0);
   const save = state.calls.find(
     (c) => c.method === "PUT" && c.path.endsWith("/presence/profile"),
   );
@@ -1359,4 +1378,350 @@ test("batch two saves service areas and explains disabled inquiries", async ({
       )
       .at(-1)?.body.serviceAreas,
   ).toEqual([]);
+});
+
+test("batch three combines search, status, type and sort without leaking filters between collections", async ({
+  page,
+}, testInfo) => {
+  const state = await fixture(page);
+  state.items.listings.push(
+    {
+      id: "a",
+      title: "Zulu planning",
+      summary: "",
+      description: "Coastal celebration",
+      media: [],
+      type: "SERVICE",
+      status: "DRAFT",
+      version: 1,
+      updatedAt: "2026-09-20T00:00:00Z",
+    },
+    {
+      id: "b",
+      title: "Alpha planning",
+      summary: "",
+      description: "Garden celebration",
+      media: [],
+      type: "SERVICE",
+      status: "PUBLISHED",
+      version: 1,
+      updatedAt: "2026-09-19T00:00:00Z",
+    },
+    {
+      id: "c",
+      title: "Old package",
+      summary: "",
+      description: "",
+      media: [],
+      type: "PACKAGE",
+      status: "ARCHIVED",
+      version: 1,
+    },
+  );
+  await tab(page, "Profile");
+  await button(page, "Refresh data").click();
+  await expect(button(page, "Refresh data")).toBeEnabled();
+  await tab(page, "Listings");
+  await expect(page.getByText("Zulu planning", { exact: true })).toBeVisible();
+  await button(page, "Filters & sort").click();
+  await button(page, "Sort content").click();
+  await button(page, "Title A–Z").click();
+  await expect(page.getByText("Alpha planning", { exact: true })).toBeVisible();
+  const titles = await page
+    .getByText(/^(Alpha|Zulu) planning$/)
+    .allTextContents();
+  expect(titles).toEqual(["Alpha planning", "Zulu planning"]);
+  await button(page, "Service").click();
+  await button(page, "Content status").click();
+  await button(page, "Published").click();
+  await page.getByLabel("Search content", { exact: true }).fill("  GARDEN  ");
+  await expect(
+    page.getByText("1 item match your filters", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Zulu planning", { exact: true })).toHaveCount(0);
+  await page.getByLabel("Search content", { exact: true }).fill("missing");
+  await expect(
+    page.getByText("No matching content", { exact: true }),
+  ).toBeVisible();
+  await button(page, "Clear filters").click();
+  await expect(page.getByText("Zulu planning", { exact: true })).toBeVisible();
+  await button(page, "Archived").click();
+  await expect(page.getByText("Old package", { exact: true })).toBeVisible();
+  await expect(page.getByText("Alpha planning", { exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByLabel("Search content", { exact: true }).fill("old");
+  await tab(page, "Portfolio");
+  await expect(page.getByLabel("Search content", { exact: true })).toHaveValue(
+    "",
+  );
+  await tab(page, "Listings");
+  await page
+    .getByLabel("Search content", { exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath("batch3-content-filters.png"),
+  });
+});
+
+test("batch three project date and location persist, preview and clear", async ({
+  page,
+}, testInfo) => {
+  const state = await fixture(page);
+  await tab(page, "Portfolio");
+  await button(page, "+ Add").click();
+  await page.getByLabel("Title", { exact: true }).fill("Garden celebration");
+  await page
+    .getByLabel("Description", { exact: true })
+    .fill("An intimate outdoor wedding with seasonal flowers.");
+  await button(page, "Choose project date").click();
+  const now = new Date(),
+    day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-12`;
+  await button(page, day).click();
+  await button(page, "Project location").click();
+  await button(page, "Beirut").click();
+  await page
+    .getByText("Project details", { exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath("batch3-project-fields.png"),
+  });
+  await button(page, "Save draft").click();
+  await expect(button(page, "Close")).toHaveCount(0);
+  expect(state.items.portfolio[0]).toMatchObject({
+    locationId: "location-beirut",
+    occurredAt: day + "T12:00:00.000Z",
+  });
+  await button(page, "View details").click();
+  await expect(
+    page.getByText("Location: Beirut", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("An intimate outdoor wedding with seasonal flowers.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await button(page, "Close").click();
+  await button(page, "Edit").click();
+  await button(page, "Clear project date").click();
+  await button(page, "Clear project location").click();
+  await button(page, "Save draft").click();
+  await expect(button(page, "Close")).toHaveCount(0);
+  expect(state.items.portfolio[0]).toMatchObject({
+    locationId: null,
+    occurredAt: null,
+  });
+});
+
+test("batch three listing areas stay separate from business and availability appears in details", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await tab(page, "Listings");
+  await button(page, "+ Add").click();
+  await page
+    .getByLabel("Title", { exact: true })
+    .fill("Mountain wedding package");
+  await page
+    .getByLabel("Add a service area", { exact: true })
+    .fill("Mount Lebanon");
+  await page
+    .getByLabel("Availability note", { exact: true })
+    .fill("Allow four weeks for preparation.");
+  await button(page, "Save draft").click();
+  await expect(button(page, "Close")).toHaveCount(0);
+  expect(state.items.listings[0]).toMatchObject({
+    serviceAreas: ["Mount Lebanon"],
+    availabilityNote: "Allow four weeks for preparation.",
+  });
+  expect(
+    state.calls.filter(
+      (call) =>
+        call.method === "PUT" && call.path.endsWith("/suppliers/current"),
+    ),
+  ).toHaveLength(0);
+  await button(page, "View details").click();
+  await expect(page.getByText("Mount Lebanon", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Allow four weeks for preparation.", { exact: true }),
+  ).toBeVisible();
+  await button(page, "Close").click();
+  await button(page, "Edit").click();
+  await button(page, "Remove Mount Lebanon").click();
+  await page.getByLabel("Availability note", { exact: true }).fill("");
+  await button(page, "Save draft").click();
+  await expect(button(page, "Close")).toHaveCount(0);
+  expect(state.items.listings[0]).toMatchObject({
+    serviceAreas: [],
+    availabilityNote: "",
+  });
+});
+
+test("batch three media ordering, captions and removal undo preserve image identities", async ({
+  page,
+}, testInfo) => {
+  const state = await fixture(page);
+  state.items.gallery.push({
+    id: "album",
+    title: "Wedding details",
+    description: "Flowers and table settings",
+    summary: "",
+    status: "DRAFT",
+    version: 1,
+    media: [1, 2, 3].map((i) => ({
+      mediaId: "image-" + i,
+      role: i === 1 ? "COVER" : "GALLERY",
+      altText: "Scene " + i,
+      caption: "Caption " + i,
+    })),
+  });
+  await tab(page, "Profile");
+  await button(page, "Refresh data").click();
+  await expect(button(page, "Refresh data")).toBeEnabled();
+  await tab(page, "Portfolio");
+  await button(page, "Gallery").click();
+  await button(page, "Edit").click();
+  await button(page, "Move image 1 earlier")
+    .isDisabled()
+    .then((value) => expect(value).toBe(true));
+  await button(page, "Move image 3 earlier").click();
+  await expect(
+    page.getByLabel("Image description for accessibility").nth(1),
+  ).toHaveValue("Scene 3");
+  await button(page, "Move image 1 later").click();
+  await expect(
+    page.getByLabel("Image description for accessibility").first(),
+  ).toHaveValue("Scene 3");
+  await button(page, "Remove").first().click();
+  await button(page, "Undo last image removal").click();
+  await expect(
+    page.getByLabel("Image description for accessibility").first(),
+  ).toHaveValue("Scene 3");
+  await page.getByLabel("Caption for image 1").fill("Our finished floral arch");
+  await page.getByLabel("Image description for accessibility").first().fill("");
+  await button(page, "Save draft").click();
+  await expect(
+    page.getByText("Describe what this image shows.", { exact: true }),
+  ).toBeVisible();
+  expect(
+    state.calls.filter(
+      (call) => call.method === "PUT" && call.path.includes("/collections/"),
+    ),
+  ).toHaveLength(0);
+  await page
+    .getByLabel("Image description for accessibility")
+    .first()
+    .fill("White roses on a garden arch");
+  await page.getByLabel("Caption for image 1").scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath("batch3-media-controls.png"),
+  });
+  await button(page, "Save draft").click();
+  await expect(button(page, "Close")).toHaveCount(0);
+  expect(state.items.gallery[0].media.map((m: any) => m.mediaId)).toEqual([
+    "image-3",
+    "image-1",
+    "image-2",
+  ]);
+  expect(state.items.gallery[0].media.map((m: any) => m.role)).toEqual([
+    "COVER",
+    "GALLERY",
+    "GALLERY",
+  ]);
+  await button(page, "View details").click();
+  await expect(
+    page.getByText("Our finished floral arch", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: "White roses on a garden arch" }),
+  ).toBeVisible();
+});
+
+test("batch three viewer can inspect content without editing it", async ({
+  page,
+}) => {
+  const state = await fixture(page, { role: "VIEWER" });
+  state.items.portfolio.push({
+    id: "project",
+    title: "Saved project",
+    description: "Full project description",
+    summary: "",
+    status: "DRAFT",
+    version: 1,
+    media: [],
+  });
+  await tab(page, "Profile");
+  await button(page, "Refresh data").click();
+  await expect(button(page, "Refresh data")).toBeEnabled();
+  await tab(page, "Portfolio");
+  await expect(button(page, "Edit")).toHaveCount(0);
+  await expect(button(page, "+ Add")).toHaveCount(0);
+  await button(page, "View details").click();
+  await expect(
+    page.getByText("Full project description", { exact: true }),
+  ).toBeVisible();
+  await expect(button(page, "Save draft")).toHaveCount(0);
+  await button(page, "Close").click();
+  await expect(
+    page.getByText("Discard unsaved changes?", { exact: true }),
+  ).toHaveCount(0);
+});
+
+test("batch three unavailable locations preserve the saved selection and offer retry", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  state.items.portfolio.push({
+    id: "project",
+    title: "Saved project",
+    description: "Project details",
+    summary: "",
+    status: "DRAFT",
+    version: 1,
+    locationId: "location-beirut",
+    occurredAt: "2025-04-12T18:30:00.000Z",
+    media: [],
+  });
+  let fail = true;
+  await page.route(api + "/api/v1/core/catalogs/locations", (route) =>
+    route.fulfill({
+      status: fail ? 503 : 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        fail
+          ? {}
+          : [
+              {
+                id: "location-beirut",
+                label: "Beirut",
+                active: true,
+                kind: "LOCATION",
+              },
+            ],
+      ),
+    }),
+  );
+  await tab(page, "Profile");
+  await button(page, "Refresh data").click();
+  await expect(button(page, "Refresh data")).toBeEnabled();
+  await tab(page, "Portfolio");
+  await button(page, "Edit").click();
+  await expect(button(page, "Retry locations")).toBeVisible();
+  await expect(page.getByText("Saved location", { exact: true })).toBeVisible();
+  await expect(page.getByText("location-beirut", { exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByLabel("Title", { exact: true }).fill("Revised project");
+  await button(page, "Save draft").click();
+  await expect(button(page, "Close")).toHaveCount(0);
+  expect(state.items.portfolio[0]).toMatchObject({
+    locationId: "location-beirut",
+    occurredAt: "2025-04-12T18:30:00.000Z",
+  });
+  await button(page, "Edit").click();
+  await expect(button(page, "Retry locations")).toBeVisible();
+  fail = false;
+  await button(page, "Retry locations").click();
+  await expect(page.getByText("Beirut", { exact: true })).toBeVisible();
+  await expect(button(page, "Retry locations")).toHaveCount(0);
 });

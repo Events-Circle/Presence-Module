@@ -7,7 +7,9 @@ export function ServiceAreas({
   onChange,
   pending,
   onPending,
+  hint = "Optional. Add cities or regions where you work. This is separate from your base city and is shared across Events Circle.",
 }: {
+  hint?: string;
   areas: string[];
   onChange: (areas: string[]) => void;
   pending: string;
@@ -32,10 +34,7 @@ export function ServiceAreas({
   return (
     <View style={{ gap: 12 }}>
       <Text style={s.h2}>Areas you serve</Text>
-      <Text style={s.body}>
-        Optional. Add cities or regions where you work. This is separate from
-        your base city and is shared across Events Circle.
-      </Text>
+      <Text style={s.body}>{hint}</Text>
       {areas.map((area, i) => (
         <View key={i} style={s.row}>
           <Text style={[s.body, { flex: 1 }]}>{area}</Text>

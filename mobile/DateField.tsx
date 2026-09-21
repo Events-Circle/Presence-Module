@@ -6,7 +6,13 @@ const iso = (date: Date) =>
 export function DateField({
   value,
   onChange,
+  label = "Offer expiry",
+  actionLabel = "expiry date",
+  hint = "Leave blank for no end date. An expiry date ends at 23:59 UTC; your local time may differ.",
 }: {
+  label?: string;
+  actionLabel?: string;
+  hint?: string;
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -17,27 +23,24 @@ export function DateField({
   return (
     <View style={{ gap: 8 }}>
       <Text style={s.label}>
-        Offer expiry <Text style={{ color: C.muted }}>(optional)</Text>
+        {label} <Text style={{ color: C.muted }}>(optional)</Text>
       </Text>
       <Button
         secondary
         label={
           value
-            ? `Offer expiry: ${new Date(value + "T12:00:00").toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" })}`
-            : "Choose expiry date"
+            ? `${label}: ${new Date(value + "T12:00:00").toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" })}`
+            : `Choose ${actionLabel}`
         }
         onPress={() => {
           setMonth(value ? new Date(value + "T12:00:00") : new Date());
           setOpen(true);
         }}
       />
-      <Text style={s.body}>
-        Leave blank for no end date. An expiry date ends at 23:59 UTC; your
-        local time may differ.
-      </Text>
+      <Text style={s.body}>{hint}</Text>
       {!!value && (
         <Button
-          label="Clear expiry date"
+          label={`Clear ${actionLabel}`}
           secondary
           onPress={() => onChange("")}
         />
@@ -69,7 +72,7 @@ export function DateField({
             }}
           >
             <Text accessibilityRole="header" style={s.h2}>
-              Choose expiry date
+              Choose {actionLabel}
             </Text>
             <View style={s.row}>
               <Pressable

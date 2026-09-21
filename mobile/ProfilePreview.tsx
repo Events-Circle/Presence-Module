@@ -1,3 +1,4 @@
+import { ContentDetails } from "./ContentDetails";
 import { CategoryDetailsPreview } from "./CategoryDetails";
 import React, { useState } from "react";
 import { Linking, Text, View } from "react-native";
@@ -91,34 +92,7 @@ export function ProfilePreview({
             />
             {items.map((item) => (
               <Card key={item.id}>
-                {!!item.media[0] && (
-                  <Photo id={item.media[0].mediaId} org={org} height={190} />
-                )}
-                <Text style={s.h2}>{item.title}</Text>
-                {!publicData && "status" in item && (
-                  <Tag text={String(item.status).toLowerCase()} />
-                )}
-                {!!item.summary && <Text style={s.body}>{item.summary}</Text>}
-                {collection === "listings" && (
-                  <>
-                    {!!item.description &&
-                      item.description !== item.summary && (
-                        <Text style={s.body}>{item.description}</Text>
-                      )}
-                    <ListingDetails item={item} />
-                  </>
-                )}
-                {collection === "gallery" &&
-                  item.media
-                    .slice(1)
-                    .map((media, index) => (
-                      <Photo
-                        key={media.mediaId + index}
-                        id={media.mediaId}
-                        org={org}
-                        height={190}
-                      />
-                    ))}
+                <ContentDetails item={item} collection={collection} org={org} />
               </Card>
             ))}
           </View>

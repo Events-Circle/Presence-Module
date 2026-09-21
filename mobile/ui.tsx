@@ -40,16 +40,19 @@ export function Button({
   secondary = false,
   disabled = false,
   selected,
+  accessibilityLabel,
 }: {
   label: string;
   onPress: () => void;
   secondary?: boolean;
   disabled?: boolean;
   selected?: boolean;
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       aria-pressed={selected}
       accessibilityState={{
         disabled,
@@ -198,10 +201,12 @@ export function Photo({
   id,
   org,
   height = 150,
+  alt = "Business image",
 }: {
   id?: string | null;
   org: string;
   height?: number;
+  alt?: string;
 }) {
   const [headers, setHeaders] = useState<Record<string, string>>();
   const [failed, setFailed] = useState(false);
@@ -273,7 +278,7 @@ export function Photo({
     );
   return (
     <Image
-      accessibilityLabel="Business image"
+      accessibilityLabel={alt}
       source={
         Platform.OS === "web"
           ? { uri: webUri }
