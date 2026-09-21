@@ -4,6 +4,7 @@ import { usePresenceMotion } from "./design/Motion";
 import { presence as P } from "./design/tokens";
 export type WelcomeButtonProps = PropsWithChildren<{
   accessibilityLabel: string;
+  accessibilityState?: import("react-native").AccessibilityState;
   onPress?: () => void;
   disabled?: boolean;
   variant?: "primary" | "secondary" | "ghost";
@@ -24,7 +25,7 @@ export function WelcomeButton({
     <Pressable
       {...props}
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!disabled }}
+      accessibilityState={{ ...props.accessibilityState, disabled: !!disabled }}
       disabled={!!disabled}
       style={({ pressed }) => [
         style,

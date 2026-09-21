@@ -80,3 +80,15 @@ Run the existing app, not the component playground, with EXPO_PUBLIC_UI_PREVIEW=
 - Only the approved blue artwork is available; original vector event illustrations keep cards meaningful while the texture loads or fails. No supplier identities or social proof are invented.
 - Official Expo/HeroUI skill sources were consulted, but the environment skill catalog does not list them as installed/discoverable; do not confuse working app dependencies with installed agent skills.
 - Sign-in transitions remain outside this change.
+
+## Optional authentication animation sample
+
+This experiment is deliberately isolated from real sign-in and the landing. Run `EXPO_PUBLIC_AUTH_SAMPLE=1 pnpm exec expo start --go --port 8082` in development; with the flag absent or in a release build the existing app remains the root. Codespaces must set EXPO_PACKAGER_PROXY_URL to the matching public HTTPS port. No dependency upgrade or development build is required.
+
+`mobile/samples/auth/AnimatedAuth.tsx` contains CurvedAuthShell, AnimatedSubmitButton, AuthTransitionOverlay and authMotion. It reuses the Presence palette, entrance groups, motion preferences and HeroUI button adapter. The navy asymmetric SVG curve expands from the header over the full viewport, then fades; it never originates from the button. The submit surface contracts to 72 points in 240 ms; the sweep takes 560 ms and reveal 220 ms. A full-width touch/layout container remains stable. Live reduced motion skips contraction and sweep. A watchdog only completes an already-confirmed sample transition if animation callbacks fail. The overlay does not intercept touches and is removed on completion/reset.
+
+`AuthAnimationSample.tsx` owns explicit fixtures: success, instant success, slow success, incorrect password and network failure. It never calls session/login APIs, stores credentials, changes real routing or claims a signed-in session. The destination is labeled as a preview. Timers emulate fixture responses only; production integration must consume actual request and destination readiness. Backgrounding cancels pending fixtures; reset/back invalidate callbacks. The scrollable keyboard-aware shell and scalable text remain usable beyond a fixed viewport. Existing recovery is unavailable and Google remains Coming soon.
+
+Removal: delete `mobile/samples/auth/` and remove the EXPO_PUBLIC_AUTH_SAMPLE branch in index.ts. The optional accessibilityState prop added to WelcomeUI may remain; it preserves existing behavior and exposes busy state for reusable buttons. No changes were made to App.tsx, AuthForm.tsx, the landing, service/session code or real destination screens.
+
+Verification: TypeScript and all 18 project tests pass. Public Android and iOS sample manifests/bundles return HTTP 200. Browser checks exercise the illustrative form, validation, request failure and immediate/slow successful destination transitions. These are fixtures, not backend sign-in tests. Native keyboard, hardware back, screen-reader focus, safe areas and animation performance remain phone acceptance checks.
