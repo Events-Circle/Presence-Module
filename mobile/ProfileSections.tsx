@@ -66,36 +66,18 @@ export function ProfileSections({
     {
       key: "address",
       title: "Page address",
-      summary: p?.slug
-        ? `/p/${p.slug}`
-        : "Choose a unique name for your public page.",
-      status: p?.slug ? "Page name saved" : "Required to create your profile",
+      summary:
+        p?.slug && p.pageAddressConfirmed !== false
+          ? `/p/${p.slug}`
+          : "Choose a unique name for your public page.",
+      status:
+        p?.slug && p.pageAddressConfirmed !== false
+          ? "Page name saved"
+          : "Choose before publishing",
     },
   ];
   return (
     <View style={{ gap: 12 }}>
-      <Card>
-        <Text accessibilityRole="header" style={s.h2}>
-          Category details
-        </Text>
-        <Text style={s.body}>
-          Capacity, services and practical information that help clients choose
-          your business.
-        </Text>
-        <Text style={{ color: C.blue, fontSize: 12 }}>
-          {Object.keys(p?.categoryDetails?.values || {}).length} details added ·
-          Optional
-        </Text>
-        {canEdit && (
-          <Button
-            label={
-              p ? "Edit category details" : "Set up profile to add details"
-            }
-            secondary
-            onPress={onDetails}
-          />
-        )}
-      </Card>
       {sections.map((section) => (
         <Card key={section.key}>
           <View
@@ -153,6 +135,28 @@ export function ProfileSections({
           )}
         </Card>
       ))}
+      <Card>
+        <Text accessibilityRole="header" style={s.h2}>
+          Category details
+        </Text>
+        <Text style={s.body}>
+          Capacity, services and practical information that help clients choose
+          your business.
+        </Text>
+        <Text style={{ color: C.blue, fontSize: 12 }}>
+          {Object.keys(p?.categoryDetails?.values || {}).length} details added ·
+          Optional
+        </Text>
+        {canEdit && (
+          <Button
+            label={
+              p ? "Edit category details" : "Set up profile to add details"
+            }
+            secondary
+            onPress={onDetails}
+          />
+        )}
+      </Card>
     </View>
   );
 }

@@ -62,6 +62,12 @@ export function ProfilePreview({
           <Text style={s.body}>{profile.description}</Text>
         </View>
       )}
+      {!!supplier.serviceAreas?.length && (
+        <Card>
+          <Text style={s.h2}>Areas served</Text>
+          <Text style={s.body}>{supplier.serviceAreas.join(" · ")}</Text>
+        </Card>
+      )}
       <CategoryDetailsPreview
         {...(profile?.categoryDetails
           ? { details: profile.categoryDetails }

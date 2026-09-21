@@ -780,7 +780,9 @@ function AppBody() {
               <Card>
                 <View style={s.row}>
                   <Text style={[s.label, { flex: 1 }]}>
-                    /p/{p?.slug || "your-business"}
+                    {p?.pageAddressConfirmed === false || !p
+                      ? "Private draft · address not chosen"
+                      : `/p/${p.slug}`}
                   </Text>
                   <Tag text={p?.published ? "Published" : "Draft"} />
                 </View>
@@ -1201,6 +1203,9 @@ function AppBody() {
                   )}
                   {data && editor?.kind === "business" && (
                     <BusinessForm
+                      leadsAvailable={data.modules.some(
+                        (m) => m.id === "leads" && m.enabled,
+                      )}
                       supplier={data.supplier}
                       org={org}
                       onSaved={saved}

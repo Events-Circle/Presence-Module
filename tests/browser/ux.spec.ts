@@ -7,6 +7,7 @@ const api = "https://events-circle-api-production.up.railway.app";
 async function fixture(
   page: Page,
   options: {
+    noProfile?: boolean;
     role?: string;
     published?: boolean;
     previewFail?: boolean;
@@ -16,6 +17,7 @@ async function fixture(
     detailsFail?: boolean;
   } = {},
 ) {
+  let hasProfile = !options.noProfile;
   const state = {
     failLoad: !!options.failLoad,
     detailsFail: !!options.detailsFail,
@@ -26,7 +28,8 @@ async function fixture(
       },
       id: "p",
       supplierId: "s",
-      slug: "qa-studio",
+      slug: options.noProfile ? "draft-internal-address" : "qa-studio",
+      pageAddressConfirmed: !options.noProfile,
       description: "A thoughtful event studio.",
       tagline: "Made for you",
       published: !!options.published,
@@ -81,6 +84,7 @@ async function fixture(
         },
       ];
     else if (path.endsWith("/suppliers/current")) {
+      if (method === "PUT") Object.assign(supplier, body);
       data = supplier;
       if (state.failLoad) status = 500;
     } else if (path.endsWith("/catalogs/categories"))
@@ -98,7 +102,9 @@ async function fixture(
     } else if (path.endsWith("/modules"))
       data = [{ id: "presence", enabled: true, implemented: true }];
     else if (path.endsWith("/readiness"))
-      data = { score: 100, ready: true, missing: [] };
+      data = state.profile.pageAddressConfirmed
+        ? { score: 100, ready: true, missing: [] }
+        : { score: 80, ready: false, missing: ["slug"] };
     else if (
       path.endsWith("/profile/publish") ||
       path.endsWith("/profile/unpublish")
@@ -108,15 +114,20 @@ async function fixture(
       data = state.profile;
     } else if (path.endsWith("/presence/profile")) {
       if (method === "PUT") {
+        hasProfile = true;
         if (options.conflict) status = 409;
         else
           state.profile = {
             ...state.profile,
             ...body,
+            pageAddressConfirmed:
+              state.profile.pageAddressConfirmed ||
+              (!!body.slug && body.slug !== state.profile.slug),
             version: state.profile.version + 1,
           };
       }
       data = state.profile;
+      if (!hasProfile) status = 404;
     } else if (path.endsWith("/share")) {
       status = options.shareFail ? 503 : 200;
       data = {
@@ -682,7 +693,7 @@ test("business setup uses searchable choices and accepts human phone formatting"
   await page.getByRole("button", { name: /Lebanon/ }).click();
   await page.getByLabel("Phone number", { exact: true }).fill("01 234 567");
   await expect(
-    page.getByText(/Turning this off stops new inquiries/),
+    page.getByText(/clients cannot send inquiries now/),
   ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("business-setup.png"),
@@ -922,7 +933,7 @@ test("category details validate venue capacity, preserve explicit no and show pu
   expect(state.calls.filter((c) => c.method === "PUT")).toHaveLength(0);
   await page.getByLabel("Seated capacity", { exact: true }).fill("120");
   await button(page, "No").first().click();
-  await button(page, "Choose event space").click();
+  await button(page, "Event space").click();
   await button(page, "Outdoor").click();
   await page.screenshot({ path: testInfo.outputPath("category-venue.png") });
   await button(page, "Save category details").click();
@@ -985,6 +996,13 @@ test("category forms retain unsaved drafts while switching and replace saved val
   await button(page, "Details for your business").click();
   await button(page, "Entertainment & DJs").click();
   await button(page, "Save category details").click();
+  await expect(
+    page.getByText("Replace saved category details?", { exact: true }),
+  ).toBeVisible();
+  await button(page, "Keep editing").click();
+  expect(state.profile.categoryDetails.type).toBe("VENUE");
+  await button(page, "Save category details").click();
+  await button(page, "Replace saved details").click();
   await expect(button(page, "Edit category details")).toBeVisible();
   expect(state.profile.categoryDetails).toEqual({
     type: "ENTERTAINMENT",
@@ -1266,4 +1284,79 @@ test("auth keyboard next advances and invalid email receives focus", async ({
   await password.press("Enter");
   await expect(email).toBeFocused();
   await expect(password).toHaveValue("valid-long-password");
+});
+
+test("batch two creates a private profile without a page name and unlocks content", async ({
+  page,
+}) => {
+  const state = await fixture(page, { noProfile: true });
+  await tab(page, "Listings");
+  await button(page, "Set up profile").click();
+  await expect(
+    page.getByLabel("Public page address · e.g. ever-after-events"),
+  ).toHaveCount(0);
+  await page
+    .getByLabel("About your business", { exact: true })
+    .fill("Our private introduction");
+  await button(page, "Save profile").click();
+  const save = state.calls.find(
+    (c) => c.method === "PUT" && c.path.endsWith("/presence/profile"),
+  );
+  expect(save?.body).not.toHaveProperty("slug");
+  expect(save?.body.published).toBe(false);
+  await button(page, "+ Add").click();
+  await page
+    .getByLabel("Title", { exact: true })
+    .fill("Our first project package");
+  await button(page, "Save draft").click();
+  await tab(page, "Profile");
+  await expect(
+    page.getByText("Choose before publishing", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("/p/draft-internal-address", { exact: true }),
+  ).toHaveCount(0);
+});
+
+test("batch two saves service areas and explains disabled inquiries", async ({
+  page,
+}, testInfo) => {
+  const state = await fixture(page);
+  await tab(page, "Profile");
+  await button(page, "Edit business information").click();
+  await page.getByLabel("Add a service area", { exact: true }).fill("Beirut");
+  await button(page, "Add area").click();
+  await page.getByLabel("Add a service area", { exact: true }).fill("beirut");
+  await button(page, "Add area").click();
+  await expect(
+    page.getByText("This area is already listed.", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Add a service area", { exact: true })
+    .fill("Mount Lebanon");
+  await page
+    .getByText(/Inquiries are not available yet because/)
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath("batch-two-business.png"),
+  });
+  await button(page, "Save business").click();
+  await expect(button(page, "Edit business information")).toBeVisible();
+  expect(
+    state.calls.find(
+      (c) => c.method === "PUT" && c.path.endsWith("/suppliers/current"),
+    )?.body.serviceAreas,
+  ).toEqual(["Beirut", "Mount Lebanon"]);
+  await button(page, "Edit business information").click();
+  await button(page, "Remove Beirut").click();
+  await button(page, "Remove Mount Lebanon").click();
+  await button(page, "Save business").click();
+  await expect(button(page, "Edit business information")).toBeVisible();
+  expect(
+    state.calls
+      .filter(
+        (c) => c.method === "PUT" && c.path.endsWith("/suppliers/current"),
+      )
+      .at(-1)?.body.serviceAreas,
+  ).toEqual([]);
 });

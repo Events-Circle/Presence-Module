@@ -1,3 +1,4 @@
+import { ServiceAreas } from "./ServiceAreas";
 import { SaveControl } from "./EditorUX";
 import { ListingPricingFields } from "./ListingPricing";
 import { profileSectionTitles, type ProfileSection } from "./ProfileSections";
@@ -43,7 +44,9 @@ export function BusinessForm({
   org,
   onSaved,
   onState,
+  leadsAvailable,
 }: {
+  leadsAvailable?: boolean;
   supplier?: Models["SupplierResponseDto"];
   org?: string;
   onSaved: () => Promise<void>;
@@ -63,11 +66,23 @@ export function BusinessForm({
     initialPhone?.formatNational() || supplier?.contactPhone || "",
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [areas, setAreas] = useState(supplier?.serviceAreas || []);
+  const [pendingArea, setPendingArea] = useState("");
   const [inquiries, setInquiries] = useState(supplier?.acceptInquiries ?? true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEditorState(
-    { name, category, city, email, phone, country, inquiries },
+    {
+      name,
+      category,
+      city,
+      email,
+      phone,
+      country,
+      inquiries,
+      areas,
+      pendingArea,
+    },
     busy,
     onState,
   );
@@ -86,6 +101,17 @@ export function BusinessForm({
     } catch (e) {
       errors.phone = (e as Error).message;
     }
+    const serviceAreas = [...areas];
+    if (
+      pendingArea.trim() &&
+      !serviceAreas.some(
+        (area) => area.toLowerCase() === pendingArea.trim().toLowerCase(),
+      )
+    )
+      serviceAreas.push(pendingArea.trim());
+    if (serviceAreas.length > 30)
+      errors.areas =
+        "Use up to 30 service areas. Remove an area before adding another.";
     setFieldErrors(errors);
     setError("");
     if (Object.keys(errors).length) {
@@ -104,7 +130,7 @@ export function BusinessForm({
           contactEmail: email.trim() || null,
           contactPhone: normalizedPhone,
           acceptInquiries: inquiries,
-          serviceAreas: supplier?.serviceAreas || [],
+          serviceAreas,
         },
       });
       await onSaved();
@@ -176,6 +202,17 @@ export function BusinessForm({
           error={fieldErrors.city}
           placeholder="e.g. Beirut"
         />
+        <ServiceAreas
+          areas={areas}
+          onChange={setAreas}
+          pending={pendingArea}
+          onPending={setPendingArea}
+        />
+        {!!fieldErrors.areas && (
+          <Text accessibilityRole="alert" style={s.error}>
+            {fieldErrors.areas}
+          </Text>
+        )}
         <View style={{ height: 1, backgroundColor: C.line }} />
         <View style={{ gap: 5 }}>
           <Text style={s.h2}>Contact details</Text>
@@ -193,28 +230,37 @@ export function BusinessForm({
           placeholder="hello@yourbusiness.com"
           maxLength={254}
         />
-        <SearchSelect
-          label="Country code"
-          value={country}
-          options={countryOptions}
-          onSelect={(value) => {
-            setCountry(value as CountryCode);
-            setFieldErrors((current) => ({ ...current, phone: "" }));
+        <View
+          style={{
+            gap: 14,
+            padding: 14,
+            backgroundColor: "#F5F7FC",
+            borderRadius: 16,
           }}
-        />
-        <SetupField
-          label="Phone number"
-          value={phone}
-          onChange={change("phone", setPhone)}
-          error={fieldErrors.phone}
-          keyboard="phone-pad"
-          placeholder={country === "LB" ? "01 234 567" : "Local phone number"}
-          maxLength={40}
-        />
-        <Text style={[s.body, { fontSize: 13, marginTop: -12 }]}>
-          Enter your local number. Spaces, brackets and dashes are fine. You can
-          also paste a full number beginning with +.
-        </Text>
+        >
+          <SearchSelect
+            label="Country code"
+            value={country}
+            options={countryOptions}
+            onSelect={(value) => {
+              setCountry(value as CountryCode);
+              setFieldErrors((current) => ({ ...current, phone: "" }));
+            }}
+          />
+          <SetupField
+            label="Phone number"
+            value={phone}
+            onChange={change("phone", setPhone)}
+            error={fieldErrors.phone}
+            keyboard="phone-pad"
+            placeholder={country === "LB" ? "01 234 567" : "Local phone number"}
+            maxLength={40}
+          />
+          <Text style={[s.body, { fontSize: 13, marginTop: -12 }]}>
+            Enter your local number. Spaces, brackets and dashes are fine. You
+            can also paste a full number beginning with +.
+          </Text>
+        </View>
         <View style={{ height: 1, backgroundColor: C.line }} />
         <View
           style={{ flexDirection: "row", gap: 14, alignItems: "flex-start" }}
@@ -222,9 +268,11 @@ export function BusinessForm({
           <View style={{ flex: 1, gap: 7 }}>
             <Text style={s.label}>Accept inquiries</Text>
             <Text style={[s.body, { fontSize: 14 }]}>
-              Let potential clients send your business questions about your
-              services or availability. Turning this off stops new inquiries; it
-              does not hide your profile.
+              {leadsAvailable === true
+                ? "Allow new inquiries through the Leads module when your profile is published. Turning this off stops new inquiries without hiding your profile."
+                : leadsAvailable === false
+                  ? "Inquiries are not available yet because the Leads module is disabled. This saves your preference for when it becomes available; clients cannot send inquiries now."
+                  : "Save your preference for client inquiries. Availability is checked after setup and depends on the Leads module and a published profile."}
             </Text>
           </View>
           <Switch
@@ -267,7 +315,9 @@ export function ProfileForm({
   const visible = (name: ProfileSection) =>
     section === "all" || section === name;
   const [attempted, setAttempted] = useState(false);
-  const [slug, setSlug] = useState(p?.slug || "");
+  const [slug, setSlug] = useState(
+    p?.pageAddressConfirmed === false ? "" : p?.slug || "",
+  );
   const [description, setDescription] = useState(p?.description || "");
   const [tagline, setTagline] = useState(p?.tagline || "");
   const [logo, setLogo] = useState(p?.logoMediaId || null);
@@ -299,9 +349,10 @@ export function ProfileForm({
     setError("");
     try {
       if (
-        slug.trim().length < 3 ||
-        slug.trim().length > 80 ||
-        !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug.trim().toLowerCase())
+        (section === "address" || (section === "all" && !!slug.trim())) &&
+        (slug.trim().length < 3 ||
+          slug.trim().length > 80 ||
+          !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug.trim().toLowerCase()))
       )
         throw new HttpError(
           400,
@@ -316,7 +367,9 @@ export function ProfileForm({
         org,
         method: "PUT",
         body: {
-          slug: slug.trim().toLowerCase(),
+          ...((section === "address" || section === "all") && slug.trim()
+            ? { slug: slug.trim().toLowerCase() }
+            : {}),
           description,
           tagline,
           logoMediaId: logo,
@@ -351,13 +404,19 @@ export function ProfileForm({
           ? "Your page is published. Saving updates the public page immediately."
           : "These changes stay unpublished until you publish your page."}
       </Text>
-      {(visible("address") || !p) && (
+      {!p && (
+        <Text style={s.body}>
+          Start with an introduction, or save an empty private draft. Add
+          images, practical details and your public address later.
+        </Text>
+      )}
+      {(section === "address" || (section === "all" && !!p)) && (
         <>
           <Field
             label="Public page address · e.g. ever-after-events"
-            required
             error={
               attempted &&
+              (section === "address" || !!slug.trim()) &&
               (slug.trim().length < 3 ||
                 slug.trim().length > 80 ||
                 !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug.trim()))
@@ -365,7 +424,7 @@ export function ProfileForm({
                 : undefined
             }
             maxLength={80}
-            hint="This is your unique page name, not a full website URL. Use lowercase letters, numbers and hyphens."
+            hint="Required before publishing, optional while building your draft. Use lowercase letters, numbers and hyphens."
             value={slug}
             onChange={(value) => setSlug(value.toLowerCase())}
           />
@@ -395,7 +454,7 @@ export function ProfileForm({
           />
         </>
       )}
-      {visible("images") && (
+      {visible("images") && !!p && (
         <>
           <View style={{ gap: 20 }}>
             {(["logo", "cover"] as const).map((kind) => (
@@ -438,7 +497,7 @@ export function ProfileForm({
           </Text>
         </>
       )}
-      {visible("contact") && (
+      {visible("contact") && !!p && (
         <>
           <Text style={s.h2}>Contact visibility</Text>
           <Text style={s.body}>

@@ -25,7 +25,8 @@ Create an account, set up a business, then complete the Presence profile. New ac
 ## Included flows
 
 - Sign in, registration, SecureStore persistence on native, refresh-token rotation, sign out.
-- Business onboarding and owner-only identity/contact editing; organization switching.
+- Business onboarding and owner-only identity/contact/service-area editing; organization switching.
+- Private profile setup without choosing a public address; an address is required before publishing. Category details use grouped sections with confirmation before replacing saved answers.
 - Overview: actionable readiness checklist, compact business identity, four listing counts, projects and gallery.
 - Profile description/tagline/slug, logo/cover upload, public contact visibility, readiness, publish/unpublish.
 - Optional category details for venues, photography/video, catering, entertainment and other event services. Forms use server-provided fields; saved answers appear in the public preview. Changing the details form replaces its saved answers without changing Core business identity.
