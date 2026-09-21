@@ -8,7 +8,7 @@ export interface SessionStore {
   write(tokens: Tokens): Promise<void>;
   clear(): Promise<void>;
 }
-/** Test/development default. Native persistence must use Expo SecureStore later. */
+/** Test/development default. The mobile adapter uses Expo SecureStore. */
 export function memorySessionStore(): SessionStore {
   let tokens: Tokens | null = null;
   return {
@@ -53,10 +53,36 @@ export class AuthSession {
   private queue: Promise<unknown> = Promise.resolve();
   private refreshing: Promise<Tokens> | undefined;
   constructor(
-    private readonly options: Omit<ApiOptions, "identity">,
+    private readonly options: Omit<ApiOptions, "identity"> & {
+      requestTimeoutMs?: number;
+    },
     private readonly store: SessionStore,
   ) {
+    if (
+      !Number.isFinite(options.requestTimeoutMs ?? 30000) ||
+      (options.requestTimeoutMs ?? 30000) <= 0
+    )
+      throw new Error("Invalid authentication timeout");
     this.api = createPresenceApi(options);
+  }
+  // Bound the complete response (including its body), even if a transport
+  // ignores cancellation. Only a successfully awaited result may store tokens.
+  private async request<T>(
+    work: (signal: AbortSignal) => Promise<T>,
+  ): Promise<T> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error("Authentication request timed out"));
+        controller.abort();
+      }, this.options.requestTimeoutMs ?? 30000);
+    });
+    try {
+      return await Promise.race([work(controller.signal), deadline]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
   private serial<T>(work: () => Promise<T>): Promise<T> {
     const next = this.queue.then(work, work);
@@ -74,9 +100,8 @@ export class AuthSession {
   }
   login(input: Login): Promise<Tokens> {
     return this.serial(async () => {
-      const { data, response } = await this.api.POST(
-        "/api/v1/core/auth/login",
-        { body: input },
+      const { data, response } = await this.request((signal) =>
+        this.api.POST("/api/v1/core/auth/login", { body: input, signal }),
       );
       const tokens = tokensFrom(data, response);
       await this.store.write(tokens);
@@ -85,9 +110,8 @@ export class AuthSession {
   }
   register(input: Registration): Promise<Tokens> {
     return this.serial(async () => {
-      const { data, response } = await this.api.POST(
-        "/api/v1/core/auth/register",
-        { body: input },
+      const { data, response } = await this.request((signal) =>
+        this.api.POST("/api/v1/core/auth/register", { body: input, signal }),
       );
       const tokens = tokensFrom(data, response);
       await this.store.write(tokens);
@@ -100,9 +124,11 @@ export class AuthSession {
       const old = await this.store.read();
       if (!old) throw new Error("Sign-in required");
       try {
-        const { data, response } = await this.api.POST(
-          "/api/v1/core/auth/refresh",
-          { body: { refreshToken: old.refreshToken } },
+        const { data, response } = await this.request((signal) =>
+          this.api.POST("/api/v1/core/auth/refresh", {
+            body: { refreshToken: old.refreshToken },
+            signal,
+          }),
         );
         const tokens = tokensFrom(data, response);
         await this.store.write(tokens);
@@ -120,13 +146,17 @@ export class AuthSession {
   logout(): Promise<void> {
     return this.serial(async () => {
       const tokens = await this.store.read();
+      // Local sign-out does not depend on server availability.
+      await this.store.clear();
       try {
         if (tokens) {
           const client = createPresenceApi({
             ...this.options,
             identity: () => ({ accessToken: tokens.accessToken }),
           });
-          const { response } = await client.POST("/api/v1/core/auth/logout");
+          const { response } = await this.request((signal) =>
+            client.POST("/api/v1/core/auth/logout", { signal }),
+          );
           if (!response.ok)
             throw new ApiFailure(
               response.status,
