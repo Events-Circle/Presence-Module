@@ -209,10 +209,9 @@ const styles = StyleSheet.create({
     color: "#3E5360",
     marginTop: 12,
     maxWidth: 330,
-    minHeight: 38,
   },
   actions: {
-    marginTop: "auto",
+    marginTop: 0,
     paddingHorizontal: 24,
     paddingTop: 32,
     paddingBottom: 12,
