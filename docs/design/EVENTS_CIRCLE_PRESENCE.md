@@ -85,7 +85,7 @@ Run the existing app, not the component playground, with EXPO_PUBLIC_UI_PREVIEW=
 
 The user-supplied `assets/brand/symbol.svg` (163 paths, 418x420) and `full-logo.svg` (147 paths, 1085x420) are authoritative. Their exact d/fill values are embedded in mobile/brand/artwork.ts for native rendering without a new SVG loader. The paths are traced shapes, not replacement circles or fonts. Original files are retained unchanged. Path-perimeter lengths were computed from the original curves, and outline start times follow each shape's angular position.
 
-BrandIntro.tsx uses a 2.9-second opening sequence. Dot outlines overlap color fill at 550–800 ms; the symbol settles at 700–1000 ms. Events starts at 1000 ms, CIRCLE at 1800 ms; painted strokes remain mounted while exact final contours blend in from 2560–2660 ms. Exit runs from 2700–2900 ms.
+BrandIntro.tsx plays the approved sequence over 4 seconds. The 2900-unit internal timeline below is stretched proportionally to 4000 ms, preserving stroke overlap and movement. Dot outlines overlap color fill at 550–800 ms; the symbol settles at 700–1000 ms. Events starts at 1000 ms, CIRCLE at 1800 ms; painted strokes remain mounted while exact final contours blend in from 2560–2660 ms. Exit runs from 2700–2900 ms.
 
 `brushStrokes.ts` supplies brush trajectories, clipped through static ClipPaths made from the original SVG lettering. Source colors and geometry are preserved. Avoid animated alpha masks: they require per-frame offscreen compositing and produced user-reported glitches. Do not hard-switch the brush layers off at completion. Timing blends stroke length with equal pen-lift allocation, preventing tiny serifs from flashing through in a single frame.
 
@@ -93,7 +93,7 @@ The two supplied SVGs have different traced symbol path sets. A short crossfade 
 
 AppBody mounts immediately for existing session restoration/membership initialization, but its presentation waits for introDone. AuthScreen and WelcomeScreen consequently mount after the intro, so landing entrances do not run invisibly. Existing authorized/onboarding routing, session APIs and URL scheme are unchanged. Intro completion persists at module scope for this JS launch; normal rerenders, navigation and resume do not replay it. A JS reload in Expo Go is a fresh launch for testing.
 
-Reduced motion shows the complete wordmark with a 230 ms fade. Backgrounding finishes/skips the decorative sequence. A 4.5-second watchdog and React error boundary release the app if animation preference resolution, callbacks or rendering fail. Unmount cancels work and removes subscriptions. All frame changes use shared values, SVG animated props or transforms; React state is not updated per frame.
+Reduced motion shows the complete wordmark with a 230 ms fade. Backgrounding finishes/skips the decorative sequence. A 5.5-second watchdog and React error boundary release the app if animation preference resolution, callbacks or rendering fail. Unmount cancels work and removes subscriptions. All frame changes use shared values, SVG animated props or transforms; React state is not updated per frame.
 
 The configured native splash and app background are #F5F8FE, matching the in-app intro. The custom sequence runs in React Native after native splash dismissal. Expo Go cannot establish release splash behavior: rebuild the native app to apply app.config.ts and verify Android/iOS cold starts, screen readers, frame pacing, restored sessions and platform deep links on a device. No native dependency changes were needed.
 
@@ -116,3 +116,5 @@ Brush update verification: pinned pnpm 10.30.3 project checks passed (contract i
 For user performance previews, run `EXPO_PUBLIC_UI_PREVIEW=0 pnpm exec expo start --go --no-dev --minify --port 8081 --max-workers 2` with the existing EXPO_PACKAGER_PROXY_URL. Keep normal Metro caches; use --clear only to resolve a concrete cache problem. Request both current manifest launch assets before sharing a QR, checking dev=false and minify=true. This warms compilation but does not guarantee device download or launch time. The preview still requires a running Codespace and network; a standalone preview build embeds JavaScript for later testing without Metro.
 
 The brush fix passed the project checks (18 tests and TypeScript). Android optimized bundle measured 8.8 MB versus 11.9 MB in development mode. Native smoothness still requires user phone verification. Session restoration remains concurrent with the intro; authentication routing was not changed.
+
+User-approved slower opening: four seconds of continuous animation, no separate added hold. Session restoration remains concurrent; reduced-motion playback stays brief. Slower animation does not guarantee readiness on slow connections.

@@ -34,6 +34,7 @@ export const INTRO = {
   circleAt: 1800,
   holdUntil: 2700,
   end: 2900,
+  playbackDuration: 4000,
 };
 let completedThisLaunch = false;
 export const introAlreadyCompleted = () => completedThisLaunch;
@@ -294,7 +295,7 @@ function IntroArtwork({ onComplete }: { onComplete: () => void }) {
       completedThisLaunch = true;
       callback.current();
     };
-    const watchdog = setTimeout(finish, 4500);
+    const watchdog = setTimeout(finish, INTRO.playbackDuration + 1500);
     const state = AppState.addEventListener("change", (s) => {
       if (s !== "active") finish();
     });
@@ -304,7 +305,7 @@ function IntroArtwork({ onComplete }: { onComplete: () => void }) {
         withTiming(
           INTRO.end,
           {
-            duration: preference ? 230 : INTRO.end,
+            duration: preference ? 230 : INTRO.playbackDuration,
             easing: Easing.linear,
             reduceMotion: ReduceMotion.Never,
           },
