@@ -1,4 +1,5 @@
 const { getDefaultConfig } = require("expo/metro-config");
+const { withUniwindConfig } = require("uniwind/metro");
 const config = getDefaultConfig(__dirname);
 // The shared client uses Node ESM .js specifiers; Metro consumes its TS sources.
 config.resolver.resolveRequest = (context, name, platform) => {
@@ -11,4 +12,7 @@ config.resolver.resolveRequest = (context, name, platform) => {
   }
   return context.resolveRequest(context, name, platform);
 };
-module.exports = config;
+module.exports = withUniwindConfig(config, {
+  cssEntryFile: "./global.css",
+  dtsFile: "./mobile/uniwind-types.d.ts",
+});
